@@ -1,0 +1,17 @@
+{
+  "short_name": "Client Hours",
+  "name": "Client Hours Tracker",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "type": "image/svg+xml",
+      "sizes": "any",
+      "purpose": "any"
+    }
+  ],
+  "start_url": "./index.html",
+  "background_color": "#F8FAFC",
+  "theme_color": "#FBBF24",
+  "display": "standalone",
+  "orientation": "portrait"
+}
