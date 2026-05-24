@@ -505,11 +505,58 @@ function formatTimeRange(fromStr, toStr) {
     return '';
 }
 
+// Safe timezone-agnostic local date parsing and auto-conversion of planned entries
+function autoConvertPlannedEntries() {
+    let changed = false;
+    const now = new Date();
+
+    state.periods.forEach(period => {
+        if (period.entries && Array.isArray(period.entries)) {
+            period.entries.forEach(entry => {
+                if (entry.type === 'planned') {
+                    // Parse elements carefully in local browser timezone
+                    const dateParts = entry.date.split('-');
+                    if (dateParts.length === 3) {
+                        const year = parseInt(dateParts[0], 10);
+                        const month = parseInt(dateParts[1], 10) - 1; // 0-indexed month
+                        const day = parseInt(dateParts[2], 10);
+
+                        let hours = 0;
+                        let minutes = 0;
+                        if (entry.timeFrom) {
+                            const timeParts = entry.timeFrom.split(':');
+                            if (timeParts.length === 2) {
+                                hours = parseInt(timeParts[0], 10);
+                                minutes = parseInt(timeParts[1], 10);
+                            }
+                        }
+
+                        // Create local date object
+                        const targetDate = new Date(year, month, day, hours, minutes);
+                        
+                        // If valid date and current time has reached/passed it, convert to actual (used/logged)
+                        if (!isNaN(targetDate.getTime()) && now >= targetDate) {
+                            entry.type = 'actual';
+                            changed = true;
+                            console.log(`Auto-converted entry "${entry.notes}" on ${entry.date} from planned to logged/used.`);
+                        }
+                    }
+                }
+            });
+        }
+    });
+
+    if (changed) {
+        saveState(); // Update browser storage & sync server immediately
+    }
+}
+
 // ==========================================================================
 // DOM RENDERING ENGINE
 // ==========================================================================
 
 function render() {
+    autoConvertPlannedEntries();
     renderPeriodDropdown();
     renderSummaryBar();
     renderClientsGrid();
