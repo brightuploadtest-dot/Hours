@@ -461,6 +461,28 @@ function getOverallStats() {
     };
 }
 
+// Format hours into friendly dynamic string (e.g. 0.33 Hr -> "20 min", 1.5 Hr -> "1 hr 30 min")
+function formatEntryHours(hours) {
+    const totalMinutes = Math.round(hours * 60);
+    if (totalMinutes < 60) {
+        return `${totalMinutes} min`;
+    }
+    const hrs = Math.floor(totalMinutes / 60);
+    const mins = totalMinutes % 60;
+    if (mins === 0) {
+        return `${hrs} hr${hrs > 1 ? 's' : ''}`;
+    }
+    return `${hrs} hr${hrs > 1 ? 's' : ''} ${mins} min`;
+}
+
+// Helper to format float display numbers cleanly without floating precision trails
+function formatDisplayHours(hours) {
+    if (Number.isInteger(hours)) {
+        return hours.toString();
+    }
+    return parseFloat(hours.toFixed(2)).toString();
+}
+
 // Format date into human-readable e.g. "May 21, 2026"
 function formatDate(dateStr) {
     if (!dateStr) return '';
@@ -678,14 +700,14 @@ function renderClientsGrid() {
         const hoursSummary = document.createElement('div');
         hoursSummary.className = 'card-hours-summary';
         
-        let subText = `${stats.used} used`;
+        let subText = `${formatDisplayHours(stats.used)} used`;
         if (stats.planned > 0) {
-            subText += ` <span style="color: #6366f1; font-weight: 600; font-size: 0.75rem;">(+${stats.planned}p)</span>`;
+            subText += ` <span style="color: #6366f1; font-weight: 600; font-size: 0.75rem;">(+${formatDisplayHours(stats.planned)}p)</span>`;
         }
         
         hoursSummary.innerHTML = `
             <div class="hours-summary-left">
-                <span class="hours-top">${stats.remaining} left</span>
+                <span class="hours-top">${formatDisplayHours(stats.remaining)} left</span>
                 <span class="hours-sub">${subText}</span>
             </div>
             <div class="hours-adjuster-quick">
@@ -755,7 +777,7 @@ function renderClientsGrid() {
                 if (isLabelSegment) {
                     segment.innerHTML = `
                         <span class="segment-date">${formatShortDate(entry.date)}</span>
-                        <span class="segment-hours">${entryHours} hrs</span>
+                        <span class="segment-hours">${formatEntryHours(entryHours)}</span>
                     `;
                 }
 
@@ -765,7 +787,7 @@ function renderClientsGrid() {
                 tooltip.className = 'segment-tooltip';
                 tooltip.innerHTML = `
                     <span class="tooltip-date">${formatDate(entry.date)}${timeText}</span>
-                    <span class="tooltip-hours"><strong>${entry.hours} Hours</strong> used</span>
+                    <span class="tooltip-hours"><strong>${formatEntryHours(entry.hours)}</strong> used</span>
                     ${entry.notes ? `<span class="tooltip-note">"${entry.notes}"</span>` : ''}
                     <span class="tooltip-action-prompt"><i class="fa-solid fa-pen-to-square"></i> Click block to edit</span>
                 `;
@@ -796,7 +818,7 @@ function renderClientsGrid() {
                 if (isLabelSegment) {
                     segment.innerHTML = `
                         <span class="segment-date" style="color: #312e81;">${formatShortDate(entry.date)}</span>
-                        <span class="segment-hours" style="color: #312e81;">${entryHours} hrs</span>
+                        <span class="segment-hours" style="color: #312e81;">${formatEntryHours(entryHours)}</span>
                     `;
                 }
 
@@ -807,7 +829,7 @@ function renderClientsGrid() {
                 tooltip.innerHTML = `
                     <span class="tooltip-date" style="color: #4f46e5; font-weight: 600;">🔮 Future Plan</span>
                     <span class="tooltip-date">${formatDate(entry.date)}${timeText}</span>
-                    <span class="tooltip-hours"><strong>${entry.hours} Hours</strong> planned</span>
+                    <span class="tooltip-hours"><strong>${formatEntryHours(entry.hours)}</strong> planned</span>
                     ${entry.notes ? `<span class="tooltip-note">"${entry.notes}"</span>` : ''}
                     <span class="tooltip-action-prompt"><i class="fa-solid fa-pen-to-square"></i> Click block to edit plan</span>
                 `;
@@ -924,15 +946,15 @@ function openClientDetailsModal(clientId) {
 
     const elSubtitle = document.getElementById('details-client-subtitle');
     if (elSubtitle) {
-        let subtitleText = `${stats.remaining} Hrs Remaining`;
+        let subtitleText = `${formatDisplayHours(stats.remaining)} Hrs Remaining`;
         if (stats.planned > 0) {
-            subtitleText += ` (+${stats.planned} Planned)`;
+            subtitleText += ` (+${formatDisplayHours(stats.planned)} Planned)`;
         }
         elSubtitle.textContent = subtitleText;
     }
 
     const elAssigned = document.getElementById('details-assigned-hours');
-    if (elAssigned) elAssigned.textContent = `${client.hours} Hrs`;
+    if (elAssigned) elAssigned.textContent = `${formatDisplayHours(client.hours)} Hrs`;
 
     // Prefill Editable Identity Input with guard
     const elEditName = document.getElementById('details-edit-name');
@@ -954,7 +976,7 @@ function openClientDetailsModal(clientId) {
             
             const isPlanned = entry.type === 'planned';
             const badgeClass = isPlanned ? 'entry-badge-planned' : 'entry-badge-used';
-            const badgeText = isPlanned ? `${entry.hours} Hrs Planned` : `${entry.hours} Hrs Used`;
+            const badgeText = isPlanned ? `${formatEntryHours(entry.hours)} Planned` : `${formatEntryHours(entry.hours)} Used`;
             
             const rangeText = formatTimeRange(entry.timeFrom, entry.timeTo) || (entry.time ? formatTime12h(entry.time) : '');
             const timeSuffix = rangeText ? ` @ ${rangeText}` : '';
@@ -1354,6 +1376,47 @@ function renderAssignedHoursManagerList() {
 // ==========================================================================
 
 function setupEventListeners() {
+    // Helper to calculate hours between two time inputs
+    function autoCalculateTimeDiff(timeFromId, timeToId, hoursInputId) {
+        const fromInput = document.getElementById(timeFromId);
+        const toInput = document.getElementById(timeToId);
+        const hoursInput = document.getElementById(hoursInputId);
+        if (!fromInput || !toInput || !hoursInput) return;
+
+        const recalculate = () => {
+            const fromVal = fromInput.value;
+            const toVal = toInput.value;
+
+            if (fromVal && toVal) {
+                const [fromH, fromM] = fromVal.split(':').map(Number);
+                const [toH, toM] = toVal.split(':').map(Number);
+
+                let diffMins = (toH * 60 + toM) - (fromH * 60 + fromM);
+                if (diffMins < 0) {
+                    // Handle overnight shift crossing midnight
+                    diffMins += 24 * 60;
+                }
+
+                const calculatedHours = parseFloat((diffMins / 60).toFixed(2));
+                hoursInput.value = calculatedHours;
+                hoursInput.readOnly = true; // Set to read-only since it is auto-computed
+                hoursInput.style.backgroundColor = 'var(--muted-color)';
+                hoursInput.style.cursor = 'not-allowed';
+            } else {
+                hoursInput.readOnly = false; // Allow manual entry if one of the fields is empty
+                hoursInput.style.backgroundColor = '';
+                hoursInput.style.cursor = '';
+            }
+        };
+
+        fromInput.addEventListener('input', recalculate);
+        toInput.addEventListener('input', recalculate);
+    }
+
+    // Bind calculation listeners for both Add and Edit modals
+    autoCalculateTimeDiff('entry-time-from', 'entry-time-to', 'entry-hours');
+    autoCalculateTimeDiff('edit-entry-time-from', 'edit-entry-time-to', 'edit-entry-hours');
+
     // Sync / Backup Modal Trigger & Setup Check
     const btnTriggerSync = document.getElementById('btn-trigger-sync');
     const modalSync = document.getElementById('modal-sync-data');
@@ -1874,8 +1937,13 @@ function setupEventListeners() {
 
             const clientId = elClient.value;
             const date = elDate.value;
-            const hours = parseInt(elHours.value);
+            const hours = parseFloat(elHours.value);
             const notes = elNotes.value.trim();
+
+            if (isNaN(hours) || hours <= 0) {
+                showToastNotification('Start time and End time cannot be the same!', 'error');
+                return;
+            }
             
             // Read selected time status (Used vs Planned)
             const entryTypeRadio = document.querySelector('input[name="entry-type"]:checked');
@@ -1942,8 +2010,13 @@ function setupEventListeners() {
 
             const entryId = elId.value;
             const date = elDate.value;
-            const hours = parseInt(elHours.value);
+            const hours = parseFloat(elHours.value);
             const notes = elNotes.value.trim();
+
+            if (isNaN(hours) || hours <= 0) {
+                showToastNotification('Start time and End time cannot be the same!', 'error');
+                return;
+            }
             
             // Read selected time status
             const entryTypeRadio = document.querySelector('input[name="edit-entry-type"]:checked');
@@ -1973,7 +2046,7 @@ function setupEventListeners() {
             }
 
             if (hours <= 0) {
-                showToastNotification('Hours must be at least 1 Hr.', 'error');
+                showToastNotification('Hours must be greater than zero.', 'error');
                 return;
             }
 
