@@ -72,6 +72,10 @@
                 <span class="summary-num" id="total-remaining">0</span>
                 <span class="summary-label">Remaining</span>
             </div>
+            <div class="summary-card kms">
+                <span class="summary-num" id="total-kms">0</span>
+                <span class="summary-label">Total Distance</span>
+            </div>
         </section>
 
         <!-- Mobile Hint -->
@@ -83,6 +87,61 @@
         <main class="clients-grid" id="clients-grid">
             <!-- Dynamic Client Cards Rendered via JS -->
         </main>
+
+        <!-- Calendar Section -->
+        <section class="calendar-section" id="calendar-section">
+            <div class="calendar-card">
+                <div class="calendar-header-bar">
+                    <div class="calendar-header-title" style="display: flex; align-items: center; gap: 0.75rem;">
+                        <i class="fa-solid fa-calendar-days"></i>
+                        <div>
+                            <h3 style="margin: 0; font-size: 1.1rem; font-weight: 700; color: var(--fg-color);">Schedule Calendar</h3>
+                            <div class="calendar-navigation-controls" style="display: flex; align-items: center; gap: 0.5rem; margin-top: 4px;">
+                                <button id="btn-calendar-prev-month" class="btn-calendar-nav" title="Previous Month" style="background: var(--bg-hover); border: 1px solid var(--border-color); color: var(--fg-color); border-radius: 4px; padding: 2px 6px; cursor: pointer; font-size: 0.75rem; display: inline-flex; align-items: center; justify-content: center; height: 24px; width: 24px;">
+                                    <i class="fa-solid fa-chevron-left"></i>
+                                </button>
+                                <span id="calendar-month-year-label" style="font-weight: 700; font-size: 0.85rem; color: var(--text-color); min-width: 90px; text-align: center; display: inline-block;">May 2026</span>
+                                <button id="btn-calendar-next-month" class="btn-calendar-nav" title="Next Month" style="background: var(--bg-hover); border: 1px solid var(--border-color); color: var(--fg-color); border-radius: 4px; padding: 2px 6px; cursor: pointer; font-size: 0.75rem; display: inline-flex; align-items: center; justify-content: center; height: 24px; width: 24px;">
+                                    <i class="fa-solid fa-chevron-right"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="calendar-legend-container" style="display: flex; align-items: center; gap: 1.5rem; flex-wrap: wrap;">
+                        <div class="calendar-legend">
+                            <span class="legend-item"><span class="legend-dot actual"></span> Logged / Used</span>
+                            <span class="legend-item"><span class="legend-dot planned"></span> Future Plan</span>
+                        </div>
+                        <div class="calendar-period-selector" style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: nowrap;">
+                            <span class="period-label" style="font-size: 0.85rem; font-weight: 600; color: var(--text-muted); white-space: nowrap;">Period:</span>
+                            <select id="calendar-period-select" class="period-dropdown-select" title="Switch between active tracking periods on the calendar" style="padding: 4px 28px 4px 12px; font-size: 0.85rem; height: auto; margin: 0;">
+                                <!-- Populated dynamically via JS -->
+                            </select>
+                            <button id="btn-calendar-change-period" class="btn-period-edit" title="Create or Edit Periods directly from the calendar" style="font-size: 0.8rem; padding: 4px 10px; border-radius: 6px; white-space: nowrap; height: 32px; display: inline-flex; align-items: center; gap: 4px; margin: 0;">
+                                <i class="fa-solid fa-calendar-plus"></i> New / Edit
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="calendar-wrapper">
+                    <!-- Weekdays Row -->
+                    <div class="calendar-weekdays">
+                        <div>Sun</div>
+                        <div>Mon</div>
+                        <div>Tue</div>
+                        <div>Wed</div>
+                        <div>Thu</div>
+                        <div>Fri</div>
+                        <div>Sat</div>
+                    </div>
+                    <!-- Days Grid -->
+                    <div class="calendar-days-grid" id="calendar-days-grid">
+                        <!-- Populated dynamically via JS -->
+                    </div>
+                </div>
+            </div>
+        </section>
 
         <!-- Footer / Sandbox Reset -->
         <footer class="app-footer">
@@ -138,7 +197,7 @@
                     </select>
                 </div>
                 <div class="form-group">
-                    <label for="entry-date">Date</label>
+                    <label for="entry-date">Date <span id="entry-date-weekday" style="font-weight: 600; color: var(--primary-hover); text-transform: none; margin-left: 4px;"></span></label>
                     <input type="date" id="entry-date" required>
                 </div>
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
@@ -150,6 +209,10 @@
                         <label for="entry-time-to">Time To</label>
                         <input type="time" id="entry-time-to" required>
                     </div>
+                </div>
+                <div class="form-group">
+                    <label for="entry-kms">Distance Traveled (Kms - optional)</label>
+                    <input type="number" id="entry-kms" step="0.1" min="0" placeholder="e.g. 12.5" autocomplete="off" style="font-size: 0.875rem; padding: 0.5rem; border: 1px solid var(--muted-color); border-radius: 6px; box-sizing: border-box; width: 100%;">
                 </div>
                 <input type="hidden" id="entry-hours">
                 <div class="form-group">
@@ -190,7 +253,7 @@
             <form id="form-edit-entry" class="modal-form">
                 <input type="hidden" id="edit-entry-id">
                 <div class="form-group">
-                    <label for="edit-entry-date">Date</label>
+                    <label for="edit-entry-date">Date <span id="edit-entry-date-weekday" style="font-weight: 600; color: var(--primary-hover); text-transform: none; margin-left: 4px;"></span></label>
                     <input type="date" id="edit-entry-date" required>
                 </div>
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
@@ -202,6 +265,10 @@
                         <label for="edit-entry-time-to">Time To</label>
                         <input type="time" id="edit-entry-time-to" required>
                     </div>
+                </div>
+                <div class="form-group">
+                    <label for="edit-entry-kms">Distance Traveled (Kms - optional)</label>
+                    <input type="number" id="edit-entry-kms" step="0.1" min="0" placeholder="e.g. 12.5" autocomplete="off" style="font-size: 0.875rem; padding: 0.5rem; border: 1px solid var(--muted-color); border-radius: 6px; box-sizing: border-box; width: 100%;">
                 </div>
                 <input type="hidden" id="edit-entry-hours">
                 <div class="form-group">
@@ -267,6 +334,15 @@
                         <button type="button" id="btn-increase-hours" class="btn-hour-adjust" title="Increase Assigned Hours">
                             <i class="fa-solid fa-plus"></i>
                         </button>
+                    </div>
+                </div>
+
+                <!-- Client Mileage Stats -->
+                <div class="form-group">
+                    <label>Total Distance Traveled</label>
+                    <div style="font-size: 0.9375rem; font-weight: 700; color: var(--fg-color); display: flex; align-items: center; gap: 6px; padding: 0.25rem 0;">
+                        <i class="fa-solid fa-car" style="color: #0891b2; opacity: 0.8;"></i>
+                        <span id="details-client-kms">0.0 Kms</span>
                     </div>
                 </div>
 

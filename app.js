@@ -34,6 +34,9 @@ let state = {
 // Currently selected client in details view modal
 let activeDetailsClientId = null;
 
+// Calendar month view date controller
+let calendarViewDate = null;
+
 // Sync server connection tracking variables
 let isServerOnline = false;
 let syncCheckIntervalId = null;
@@ -419,9 +422,9 @@ function checkSyncConnectionStatus() {
 // CALCULATIONS & HELPER MATHS
 // ==========================================================================
 
-function getClientStats(client) {
-    const activePeriod = getActivePeriod();
-    const entries = activePeriod.entries || [];
+function getClientStats(client, period) {
+    const targetPeriod = period || getActivePeriod();
+    const entries = targetPeriod.entries || [];
     const clientEntries = entries.filter(e => e.clientId === client.id);
     
     // Split into Used vs Planned entries
@@ -440,6 +443,7 @@ function getOverallStats() {
     let totalAssigned = 0;
     let totalUsed = 0;
     let totalPlanned = 0;
+    let totalKms = 0;
 
     const activePeriod = getActivePeriod();
     const visibleClients = activePeriod.clients.filter(c => !c.hidden);
@@ -449,6 +453,11 @@ function getOverallStats() {
         const stats = getClientStats(client);
         totalUsed += stats.used;
         totalPlanned += stats.planned;
+        
+        const clientEntries = stats.entries || [];
+        clientEntries.forEach(entry => {
+            totalKms += (entry.kms || 0);
+        });
     });
 
     const totalRemaining = Math.max(0, totalAssigned - totalUsed - totalPlanned);
@@ -457,7 +466,8 @@ function getOverallStats() {
         assigned: totalAssigned,
         used: totalUsed,
         planned: totalPlanned,
-        remaining: totalRemaining
+        remaining: totalRemaining,
+        kms: totalKms
     };
 }
 
@@ -483,18 +493,18 @@ function formatDisplayHours(hours) {
     return parseFloat(hours.toFixed(2)).toString();
 }
 
-// Format date into human-readable e.g. "May 21, 2026"
+// Format date into human-readable e.g. "May 21, 2026" -> "Thu, May 21, 2026"
 function formatDate(dateStr) {
     if (!dateStr) return '';
     const date = new Date(dateStr + 'T00:00:00');
-    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    return date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
 }
 
-// Format short date for segment block text e.g. "May 21"
+// Format short date for segment block text e.g. "May 21" -> "Thu, May 21"
 function formatShortDate(dateStr) {
     if (!dateStr) return '';
     const date = new Date(dateStr + 'T00:00:00');
-    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    return date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
 }
 
 // Format time into human-readable 12-hour format e.g. "2:30 PM"
@@ -573,6 +583,40 @@ function autoConvertPlannedEntries() {
     }
 }
 
+// Helper to dynamically display the day name for a date input field next to its label
+function setupDateWeekdayHelper(inputId, helperId) {
+    const input = document.getElementById(inputId);
+    const helper = document.getElementById(helperId);
+    if (!input || !helper) return;
+
+    const update = () => {
+        const val = input.value;
+        if (val) {
+            const date = new Date(val + 'T00:00:00');
+            const dayName = date.toLocaleDateString('en-US', { weekday: 'long' });
+            helper.textContent = `(${dayName})`;
+        } else {
+            helper.textContent = '';
+        }
+    };
+
+    input.addEventListener('input', update);
+    input.addEventListener('change', update);
+    update();
+}
+
+// Helper to return a CSS class identifier based on client name for color personalization
+function getClientColorClass(clientName) {
+    if (!clientName) return '';
+    const name = clientName.toLowerCase();
+    if (name.includes('ryan')) return 'client-red';
+    if (name.includes('jamie')) return 'client-purple';
+    if (name.includes('tyler')) return 'client-orange';
+    if (name.includes('adrian')) return 'client-yellow';
+    if (name.includes('noah')) return 'client-cyan';
+    return '';
+}
+
 // ==========================================================================
 // DOM RENDERING ENGINE
 // ==========================================================================
@@ -584,28 +628,36 @@ function render() {
     renderClientsGrid();
     populateClientDropdowns();
     renderHiddenClientsManager();
+    renderCalendar();
 }
 
 // Render dynamic periods dropdown select options
 function renderPeriodDropdown() {
     const dropdown = document.getElementById('period-select-dropdown');
-    if (!dropdown) return;
-
-    dropdown.innerHTML = '';
+    const calDropdown = document.getElementById('calendar-period-select');
     
+    const dropdowns = [];
+    if (dropdown) dropdowns.push(dropdown);
+    if (calDropdown) dropdowns.push(calDropdown);
+    
+    if (dropdowns.length === 0) return;
+
     // Sort periods chronologically by starting date
     const sortedPeriods = [...state.periods].sort((a, b) => new Date(a.start) - new Date(b.start));
 
-    sortedPeriods.forEach(period => {
-        const option = document.createElement('option');
-        option.value = period.id;
-        option.textContent = `${formatDate(period.start)} – ${formatDate(period.end)}`;
-        
-        if (period.id === state.activePeriodId) {
-            option.selected = true;
-        }
+    dropdowns.forEach(select => {
+        select.innerHTML = '';
+        sortedPeriods.forEach(period => {
+            const option = document.createElement('option');
+            option.value = period.id;
+            option.textContent = `${formatDate(period.start)} – ${formatDate(period.end)}`;
+            
+            if (period.id === state.activePeriodId) {
+                option.selected = true;
+            }
 
-        dropdown.appendChild(option);
+            select.appendChild(option);
+        });
     });
 }
 
@@ -616,6 +668,7 @@ function renderSummaryBar() {
     animateNumberUpdate('total-assigned', stats.assigned);
     animateNumberUpdate('total-used', stats.used);
     animateNumberUpdate('total-remaining', stats.remaining);
+    animateNumberUpdate('total-kms', stats.kms, true);
 
     // Dynamic sub-label inside Remaining card to display Planned Hours
     const remainingCard = document.querySelector('.summary-card.left');
@@ -637,11 +690,11 @@ function renderSummaryBar() {
     }
 }
 
-function animateNumberUpdate(elementId, targetValue) {
+function animateNumberUpdate(elementId, targetValue, isDecimal = false) {
     const el = document.getElementById(elementId);
     if (!el) return;
     
-    const startValue = parseInt(el.textContent) || 0;
+    const startValue = isDecimal ? (parseFloat(el.textContent) || 0) : (parseInt(el.textContent) || 0);
     if (startValue === targetValue) return;
 
     const duration = 400; // ms
@@ -653,14 +706,18 @@ function animateNumberUpdate(elementId, targetValue) {
         
         // Ease out quadratic
         const easeProgress = progress * (2 - progress);
-        const currentValue = Math.round(startValue + (targetValue - startValue) * easeProgress);
+        const currentValue = startValue + (targetValue - startValue) * easeProgress;
         
-        el.textContent = currentValue;
+        if (isDecimal) {
+            el.textContent = currentValue.toFixed(1);
+        } else {
+            el.textContent = Math.round(currentValue);
+        }
 
         if (progress < 1) {
             requestAnimationFrame(update);
         } else {
-            el.textContent = targetValue;
+            el.textContent = isDecimal ? targetValue.toFixed(1) : targetValue;
         }
     }
     
@@ -734,8 +791,13 @@ function renderClientsGrid() {
             
             const modalAddEntry = document.getElementById('modal-add-entry');
             const dropdown = document.getElementById('entry-client');
+            const formAddEntry = document.getElementById('form-add-entry');
             
             if (modalAddEntry && dropdown) {
+                if (formAddEntry) {
+                    formAddEntry.reset();
+                    prefillDefaultDate();
+                }
                 // Populate dropdown option
                 dropdown.value = client.id;
                 
@@ -770,8 +832,9 @@ function renderClientsGrid() {
             const entryHours = entry.hours;
             for (let i = 0; i < entryHours; i++) {
                 const isLabelSegment = (i === 0);
+                const clientColorClass = getClientColorClass(client.name);
                 const segment = document.createElement('div');
-                segment.className = 'battery-segment filled';
+                segment.className = `battery-segment filled ${clientColorClass}`;
                 segment.setAttribute('title', 'Click to edit time entry');
                 
                 if (isLabelSegment) {
@@ -788,6 +851,7 @@ function renderClientsGrid() {
                 tooltip.innerHTML = `
                     <span class="tooltip-date">${formatDate(entry.date)}${timeText}</span>
                     <span class="tooltip-hours"><strong>${formatEntryHours(entry.hours)}</strong> used</span>
+                    ${entry.kms ? `<span class="tooltip-hours" style="color: var(--primary-color);"><strong>${entry.kms} Kms</strong> traveled</span>` : ''}
                     ${entry.notes ? `<span class="tooltip-note">"${entry.notes}"</span>` : ''}
                     <span class="tooltip-action-prompt"><i class="fa-solid fa-pen-to-square"></i> Click block to edit</span>
                 `;
@@ -811,8 +875,9 @@ function renderClientsGrid() {
             const entryHours = entry.hours;
             for (let i = 0; i < entryHours; i++) {
                 const isLabelSegment = (i === 0);
+                const clientColorClass = getClientColorClass(client.name);
                 const segment = document.createElement('div');
-                segment.className = 'battery-segment planned';
+                segment.className = `battery-segment planned ${clientColorClass}`;
                 segment.setAttribute('title', 'Future Plan: Click to edit');
                 
                 if (isLabelSegment) {
@@ -830,6 +895,7 @@ function renderClientsGrid() {
                     <span class="tooltip-date" style="color: #4f46e5; font-weight: 600;">🔮 Future Plan</span>
                     <span class="tooltip-date">${formatDate(entry.date)}${timeText}</span>
                     <span class="tooltip-hours"><strong>${formatEntryHours(entry.hours)}</strong> planned</span>
+                    ${entry.kms ? `<span class="tooltip-hours" style="color: #06b6d4;"><strong>${entry.kms} Kms</strong> traveled</span>` : ''}
                     ${entry.notes ? `<span class="tooltip-note">"${entry.notes}"</span>` : ''}
                     <span class="tooltip-action-prompt"><i class="fa-solid fa-pen-to-square"></i> Click block to edit plan</span>
                 `;
@@ -862,11 +928,19 @@ function renderClientsGrid() {
         const cardDetails = document.createElement('div');
         cardDetails.className = 'card-details';
         cardDetails.setAttribute('title', `Manage ${client.name} hours & view logs`);
+        
+        let clientKms = 0;
+        stats.entries.forEach(entry => {
+            clientKms += (entry.kms || 0);
+        });
+        const kmsDisplay = clientKms > 0 ? `<div style="font-size: 0.75rem; font-weight: 600; color: #0891b2; margin-top: 4px; display: inline-flex; align-items: center; gap: 4px;"><i class="fa-solid fa-car" style="font-size: 0.6875rem;"></i> ${clientKms.toFixed(1)} Kms</div>` : '';
+
         cardDetails.innerHTML = `
             <span class="client-name-title">${client.name}</span>
             <span class="client-total-assigned">
                 ${client.hours} Hrs Assigned <i class="fa-solid fa-sliders details-cog"></i>
             </span>
+            ${kmsDisplay}
         `;
         
         // Open details modal on click
@@ -878,6 +952,169 @@ function renderClientsGrid() {
 
         grid.appendChild(card);
     });
+}
+
+// Render Schedule Calendar at the bottom of the main dashboard
+// Render Schedule Calendar at the bottom of the main dashboard
+function renderCalendar() {
+    const gridContainer = document.getElementById('calendar-days-grid');
+    const monthYearLabel = document.getElementById('calendar-month-year-label');
+    if (!gridContainer) return;
+
+    const activePeriod = getActivePeriod();
+    if (!activePeriod) return;
+
+    // Initialize calendarViewDate to activePeriod's start date if not set
+    if (!calendarViewDate) {
+        calendarViewDate = new Date(activePeriod.start + 'T00:00:00');
+    }
+
+    const year = calendarViewDate.getFullYear();
+    const month = calendarViewDate.getMonth(); // 0-indexed
+
+    // Update the Month & Year Label
+    if (monthYearLabel) {
+        const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+        monthYearLabel.textContent = `${monthNames[month]} ${year}`;
+    }
+
+    gridContainer.innerHTML = '';
+
+    // First day of the month
+    const firstDayOfMonth = new Date(year, month, 1);
+    // Last day of the month
+    const lastDayOfMonth = new Date(year, month + 1, 0);
+
+    // Bounding week start (preceding Sunday)
+    const calendarStart = new Date(firstDayOfMonth);
+    calendarStart.setDate(firstDayOfMonth.getDate() - firstDayOfMonth.getDay());
+
+    // Bounding week end (succeeding Saturday)
+    const calendarEnd = new Date(lastDayOfMonth);
+    calendarEnd.setDate(lastDayOfMonth.getDate() + (6 - lastDayOfMonth.getDay()));
+
+    // Get current date string for checking "today" (local date)
+    const today = new Date();
+    const todayStr = `${today.getFullYear()}-${(today.getMonth() + 1).toString().padStart(2, '0')}-${today.getDate().toString().padStart(2, '0')}`;
+
+    // Group entries from ALL periods by date for lookup
+    const entriesByDate = {};
+    state.periods.forEach(period => {
+        if (period.entries && Array.isArray(period.entries)) {
+            period.entries.forEach(entry => {
+                if (!entriesByDate[entry.date]) {
+                    entriesByDate[entry.date] = [];
+                }
+                // Store with period ID reference
+                entriesByDate[entry.date].push({
+                    ...entry,
+                    periodId: period.id
+                });
+            });
+        }
+    });
+
+    // Loop through each day from calendarStart to calendarEnd
+    const current = new Date(calendarStart);
+    while (current <= calendarEnd) {
+        // Safe string parsing for local ISO date
+        const yyyy = current.getFullYear();
+        const mm = (current.getMonth() + 1).toString().padStart(2, '0');
+        const dd = current.getDate().toString().padStart(2, '0');
+        const dateStr = `${yyyy}-${mm}-${dd}`;
+        
+        const dayNum = current.getDate();
+        const isToday = (dateStr === todayStr);
+        const isActive = (current.getMonth() === month); // True if it belongs to viewed month
+
+        const dayCell = document.createElement('div');
+        dayCell.className = `calendar-day ${isActive ? 'active-month' : 'inactive-month'} ${isToday ? 'today' : ''}`;
+        dayCell.setAttribute('data-date', dateStr);
+
+        // Header container for the cell (number + today label)
+        const headerContainer = document.createElement('div');
+        headerContainer.className = 'day-number-container';
+        
+        const spanNumber = document.createElement('span');
+        spanNumber.className = 'day-number';
+        spanNumber.textContent = dayNum;
+        headerContainer.appendChild(spanNumber);
+
+        if (isToday) {
+            const spanToday = document.createElement('span');
+            spanToday.className = 'today-badge';
+            spanToday.textContent = 'TODAY';
+            headerContainer.appendChild(spanToday);
+        }
+
+        dayCell.appendChild(headerContainer);
+
+        // Entries container
+        const entriesContainer = document.createElement('div');
+        entriesContainer.className = 'day-entries-container';
+
+        // Render entries for this day
+        const dayEntries = entriesByDate[dateStr] || [];
+        dayEntries.forEach(entry => {
+            // Find target period for this entry
+            const entryPeriod = state.periods.find(p => p.id === entry.periodId);
+            const client = entryPeriod ? entryPeriod.clients.find(c => c.id === entry.clientId) : null;
+            const clientName = client ? client.name : 'Unknown';
+
+            const clientColorClass = getClientColorClass(clientName);
+            const pill = document.createElement('div');
+            pill.className = `calendar-entry-pill ${entry.type} ${clientColorClass}`;
+            pill.setAttribute('data-entry-id', entry.id);
+            
+            const kmsSuffix = entry.kms ? `, ${entry.kms} Kms` : '';
+            pill.setAttribute('title', `${clientName}: ${formatEntryHours(entry.hours)} ${entry.type === 'planned' ? 'Planned' : 'Used'}${kmsSuffix}${entry.notes ? ' - "' + entry.notes + '"' : ''}`);
+
+            const spanClient = document.createElement('span');
+            spanClient.className = 'pill-client';
+            spanClient.textContent = clientName;
+
+            const spanHours = document.createElement('span');
+            spanHours.className = 'pill-hours';
+            spanHours.textContent = formatEntryHours(entry.hours) + (entry.kms ? ` (${entry.kms} km)` : '');
+
+            pill.appendChild(spanClient);
+            pill.appendChild(spanHours);
+
+            // Click handler for editing entry
+            pill.addEventListener('click', (e) => {
+                e.stopPropagation(); // Prevent opening Add Entry modal
+                openEditEntryModal(entry.id);
+            });
+
+            entriesContainer.appendChild(pill);
+        });
+
+        // Click handler for day cell to add a new entry for this date (supports any day visible on the calendar)
+        dayCell.addEventListener('click', () => {
+            const modalAddEntry = document.getElementById('modal-add-entry');
+            const dateInput = document.getElementById('entry-date');
+            const clientDropdown = document.getElementById('entry-client');
+            const formAddEntry = document.getElementById('form-add-entry');
+            
+            if (modalAddEntry && dateInput) {
+                if (formAddEntry) {
+                    formAddEntry.reset();
+                }
+                dateInput.value = dateStr;
+                dateInput.dispatchEvent(new Event('change'));
+                modalAddEntry.classList.add('active');
+                if (clientDropdown) {
+                    clientDropdown.focus();
+                }
+            }
+        });
+
+        dayCell.appendChild(entriesContainer);
+        gridContainer.appendChild(dayCell);
+
+        // Advance to next day
+        current.setDate(current.getDate() + 1);
+    }
 }
 
 // Update option lists in form selectors
@@ -956,6 +1193,14 @@ function openClientDetailsModal(clientId) {
     const elAssigned = document.getElementById('details-assigned-hours');
     if (elAssigned) elAssigned.textContent = `${formatDisplayHours(client.hours)} Hrs`;
 
+    // Calculate total Kms for this client
+    let clientKms = 0;
+    stats.entries.forEach(entry => {
+        clientKms += (entry.kms || 0);
+    });
+    const elClientKms = document.getElementById('details-client-kms');
+    if (elClientKms) elClientKms.textContent = `${clientKms.toFixed(1)} Kms`;
+
     // Prefill Editable Identity Input with guard
     const elEditName = document.getElementById('details-edit-name');
     if (elEditName) elEditName.value = client.name;
@@ -978,13 +1223,16 @@ function openClientDetailsModal(clientId) {
             const badgeClass = isPlanned ? 'entry-badge-planned' : 'entry-badge-used';
             const badgeText = isPlanned ? `${formatEntryHours(entry.hours)} Planned` : `${formatEntryHours(entry.hours)} Used`;
             
+            const kmsBadge = entry.kms ? `<span class="entry-badge-used" style="background-color: rgba(6, 182, 212, 0.1); color: #0891b2; border: 1px solid rgba(6, 182, 212, 0.2); text-transform: none; font-size: 0.625rem; font-weight: 600; padding: 0.125rem 0.375rem; border-radius: 4px;">${entry.kms} Kms</span>` : '';
+            
             const rangeText = formatTimeRange(entry.timeFrom, entry.timeTo) || (entry.time ? formatTime12h(entry.time) : '');
             const timeSuffix = rangeText ? ` @ ${rangeText}` : '';
             entryItem.innerHTML = `
                 <div class="details-entry-content">
-                    <div class="details-entry-header" style="display: flex; gap: 0.5rem; align-items: center;">
+                    <div class="details-entry-header" style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
                         <span class="details-entry-date">${formatDate(entry.date)}${timeSuffix}</span>
                         <span class="${badgeClass}">${badgeText}</span>
+                        ${kmsBadge}
                     </div>
                     ${entry.notes ? `<span class="details-entry-notes">"${entry.notes}"</span>` : ''}
                 </div>
@@ -995,9 +1243,19 @@ function openClientDetailsModal(clientId) {
 
             // Delete action bindings
             const btnDelete = entryItem.querySelector('.btn-delete-entry');
-            btnDelete.addEventListener('click', () => {
+            btnDelete.addEventListener('click', (e) => {
+                e.stopPropagation(); // prevent opening the edit modal
                 deleteEntry(entry.id, client);
             });
+
+            // Edit action bindings
+            const entryContent = entryItem.querySelector('.details-entry-content');
+            if (entryContent) {
+                entryContent.style.cursor = 'pointer';
+                entryContent.addEventListener('click', () => {
+                    openEditEntryModal(entry.id);
+                });
+            }
 
             listContainer.appendChild(entryItem);
         });
@@ -1032,12 +1290,29 @@ function deleteEntry(entryId, client) {
 // ==========================================================================
 
 function openEditEntryModal(entryId) {
-    const activePeriod = getActivePeriod();
-    if (!activePeriod.entries) activePeriod.entries = [];
-    const entry = activePeriod.entries.find(e => e.id === entryId);
-    if (!entry) return;
+    let entry = null;
+    let foundPeriod = null;
+    
+    for (const period of state.periods) {
+        if (period.entries) {
+            entry = period.entries.find(e => e.id === entryId);
+            if (entry) {
+                foundPeriod = period;
+                break;
+            }
+        }
+    }
+    
+    if (!entry || !foundPeriod) return;
 
-    const client = activePeriod.clients.find(c => c.id === entry.clientId);
+    // Switch active period to the entry's period if it is different
+    if (foundPeriod.id !== state.activePeriodId) {
+        state.activePeriodId = foundPeriod.id;
+        saveState();
+        render();
+    }
+
+    const client = foundPeriod.clients.find(c => c.id === entry.clientId);
     if (!client) return;
 
     // Fill form elements
@@ -1045,7 +1320,10 @@ function openEditEntryModal(entryId) {
     if (elId) elId.value = entry.id;
 
     const elDate = document.getElementById('edit-entry-date');
-    if (elDate) elDate.value = entry.date;
+    if (elDate) {
+        elDate.value = entry.date;
+        elDate.dispatchEvent(new Event('change'));
+    }
 
     const elHours = document.getElementById('edit-entry-hours');
     if (elHours) elHours.value = entry.hours;
@@ -1054,13 +1332,18 @@ function openEditEntryModal(entryId) {
     if (elNotes) elNotes.value = entry.notes || '';
 
     const elSubtitle = document.getElementById('edit-entry-client-subtitle');
-    if (elSubtitle) elSubtitle.textContent = client.name;
+    if (elSubtitle) {
+        elSubtitle.textContent = `${client.name} — ${formatDate(entry.date)}`;
+    }
 
     const elTimeFrom = document.getElementById('edit-entry-time-from');
     if (elTimeFrom) elTimeFrom.value = entry.timeFrom || entry.time || '';
 
     const elTimeTo = document.getElementById('edit-entry-time-to');
     if (elTimeTo) elTimeTo.value = entry.timeTo || '';
+
+    const elKms = document.getElementById('edit-entry-kms');
+    if (elKms) elKms.value = entry.kms || '';
 
     // Select correct time status radio pill
     const entryType = entry.type || 'actual';
@@ -1417,6 +1700,10 @@ function setupEventListeners() {
     autoCalculateTimeDiff('entry-time-from', 'entry-time-to', 'entry-hours');
     autoCalculateTimeDiff('edit-entry-time-from', 'edit-entry-time-to', 'edit-entry-hours');
 
+    // Setup interactive date weekday indicators next to form labels
+    setupDateWeekdayHelper('entry-date', 'entry-date-weekday');
+    setupDateWeekdayHelper('edit-entry-date', 'edit-entry-date-weekday');
+
     // Sync / Backup Modal Trigger & Setup Check
     const btnTriggerSync = document.getElementById('btn-trigger-sync');
     const modalSync = document.getElementById('modal-sync-data');
@@ -1533,15 +1820,69 @@ function setupEventListeners() {
             const selectedId = e.target.value;
             if (state.periods.some(p => p.id === selectedId)) {
                 state.activePeriodId = selectedId;
-                saveState();
                 
                 // Clear any active detail client references
                 activeDetailsClientId = null;
                 
+                const period = state.periods.find(p => p.id === selectedId);
+                if (period) {
+                    calendarViewDate = new Date(period.start + 'T00:00:00');
+                }
+
+                saveState();
                 prefillDefaultDate();
                 render();
                 showToastNotification('Switched tracking period worksheet!', 'success');
             }
+        });
+    }
+
+    const calPeriodDropdown = document.getElementById('calendar-period-select');
+    if (calPeriodDropdown) {
+        calPeriodDropdown.addEventListener('change', (e) => {
+            const selectedId = e.target.value;
+            if (state.periods.some(p => p.id === selectedId)) {
+                state.activePeriodId = selectedId;
+                
+                // Clear any active detail client references
+                activeDetailsClientId = null;
+                
+                const period = state.periods.find(p => p.id === selectedId);
+                if (period) {
+                    calendarViewDate = new Date(period.start + 'T00:00:00');
+                }
+
+                saveState();
+                prefillDefaultDate();
+                render();
+                showToastNotification('Switched tracking period worksheet!', 'success');
+            }
+        });
+    }
+
+    // Calendar Month Navigation Buttons
+    const btnCalPrevMonth = document.getElementById('btn-calendar-prev-month');
+    const btnCalNextMonth = document.getElementById('btn-calendar-next-month');
+
+    if (btnCalPrevMonth) {
+        btnCalPrevMonth.addEventListener('click', () => {
+            const activePeriod = getActivePeriod();
+            if (!calendarViewDate) {
+                calendarViewDate = new Date(activePeriod.start + 'T00:00:00');
+            }
+            calendarViewDate.setMonth(calendarViewDate.getMonth() - 1);
+            renderCalendar();
+        });
+    }
+
+    if (btnCalNextMonth) {
+        btnCalNextMonth.addEventListener('click', () => {
+            const activePeriod = getActivePeriod();
+            if (!calendarViewDate) {
+                calendarViewDate = new Date(activePeriod.start + 'T00:00:00');
+            }
+            calendarViewDate.setMonth(calendarViewDate.getMonth() + 1);
+            renderCalendar();
         });
     }
 
@@ -1561,34 +1902,47 @@ function setupEventListeners() {
     
     if (btnAddEntry && modalAddEntry) {
         btnAddEntry.addEventListener('click', () => {
+            const formAddEntry = document.getElementById('form-add-entry');
+            if (formAddEntry) {
+                formAddEntry.reset();
+                prefillDefaultDate();
+            }
             modalAddEntry.classList.add('active');
         });
     }
 
     // Change Period Modal Trigger & Setup
     const btnChangePeriod = document.getElementById('btn-change-period');
+    const btnCalendarChangePeriod = document.getElementById('btn-calendar-change-period');
     const modalChangePeriod = document.getElementById('modal-change-period');
-    if (btnChangePeriod && modalChangePeriod) {
-        btnChangePeriod.addEventListener('click', () => {
-            const activePeriod = getActivePeriod();
-            const startInput = document.getElementById('period-start');
-            const endInput = document.getElementById('period-end');
-            
-            if (startInput && endInput) {
-                startInput.value = activePeriod.start;
-                endInput.value = activePeriod.end;
-            }
+    
+    function triggerChangePeriodModal() {
+        if (!modalChangePeriod) return;
+        const activePeriod = getActivePeriod();
+        const startInput = document.getElementById('period-start');
+        const endInput = document.getElementById('period-end');
+        
+        if (startInput && endInput) {
+            startInput.value = activePeriod.start;
+            endInput.value = activePeriod.end;
+        }
 
-            // Default to "Create New Period" radio selection
-            const radioCreate = document.querySelector('input[name="period-action"][value="create"]');
-            if (radioCreate) {
-                radioCreate.checked = true;
-                // Dispatch event manually to trigger UI label updates
-                radioCreate.dispatchEvent(new Event('change'));
-            }
+        // Default to "Create New Period" radio selection
+        const radioCreate = document.querySelector('input[name="period-action"][value="create"]');
+        if (radioCreate) {
+            radioCreate.checked = true;
+            // Dispatch event manually to trigger UI label updates
+            radioCreate.dispatchEvent(new Event('change'));
+        }
 
-            modalChangePeriod.classList.add('active');
-        });
+        modalChangePeriod.classList.add('active');
+    }
+
+    if (btnChangePeriod) {
+        btnChangePeriod.addEventListener('click', triggerChangePeriodModal);
+    }
+    if (btnCalendarChangePeriod) {
+        btnCalendarChangePeriod.addEventListener('click', triggerChangePeriodModal);
     }
 
     // Period Modal Radio selection dynamically updates titles/prompts
@@ -1955,11 +2309,66 @@ function setupEventListeners() {
             const elTimeTo = document.getElementById('entry-time-to');
             const timeTo = elTimeTo ? elTimeTo.value : '';
 
-            const activePeriod = getActivePeriod();
-            const client = activePeriod.clients.find(c => c.id === clientId);
+            // Find appropriate period for this entry's date
+            let targetPeriod = state.periods.find(p => date >= p.start && date <= p.end);
+            let periodCreated = false;
+            
+            if (!targetPeriod) {
+                // No period covers this date. Let's auto-create a monthly period for this date!
+                const entryDateObj = new Date(date + 'T00:00:00');
+                const yyyy = entryDateObj.getFullYear();
+                const mm = (entryDateObj.getMonth() + 1).toString().padStart(2, '0');
+                
+                // Get last day of the month
+                const lastDay = new Date(yyyy, entryDateObj.getMonth() + 1, 0).getDate();
+                const startOfEntryMonth = `${yyyy}-${mm}-01`;
+                const endOfEntryMonth = `${yyyy}-${mm}-${lastDay.toString().padStart(2, '0')}`;
+                const newPeriodId = `${startOfEntryMonth}_${endOfEntryMonth}`;
+                
+                // Check if this month period already exists
+                targetPeriod = state.periods.find(p => p.id === newPeriodId);
+                
+                if (!targetPeriod) {
+                    // Carry over clients from current active period
+                    const currentPeriod = getActivePeriod();
+                    const copiedClients = JSON.parse(JSON.stringify(currentPeriod.clients));
+                    copiedClients.forEach(c => {
+                        delete c.hidden;
+                    });
+                    
+                    targetPeriod = {
+                        id: newPeriodId,
+                        start: startOfEntryMonth,
+                        end: endOfEntryMonth,
+                        clients: copiedClients,
+                        entries: []
+                    };
+                    state.periods.push(targetPeriod);
+                    periodCreated = true;
+                }
+            }
+
+            // Switch to the target period
+            if (state.activePeriodId !== targetPeriod.id) {
+                state.activePeriodId = targetPeriod.id;
+            }
+
+            // Make sure the entry is added to the target period's client matching clientId
+            let client = targetPeriod.clients.find(c => c.id === clientId);
+            if (!client) {
+                // If the client ID does not match, try to match by name
+                const origPeriod = state.periods.find(p => p.clients.some(c => c.id === clientId));
+                const origClient = origPeriod ? origPeriod.clients.find(c => c.id === clientId) : null;
+                if (origClient) {
+                    client = targetPeriod.clients.find(c => c.name.toLowerCase() === origClient.name.toLowerCase());
+                }
+            }
+            if (!client) {
+                client = targetPeriod.clients[0];
+            }
             if (!client) return;
 
-            const stats = getClientStats(client);
+            const stats = getClientStats(client, targetPeriod);
 
             // Validating remaining capacity
             if (hours > stats.remaining) {
@@ -1967,18 +2376,27 @@ function setupEventListeners() {
                 return;
             }
 
+            const elKms = document.getElementById('entry-kms');
+            const kms = elKms ? parseFloat(elKms.value) || 0 : 0;
+
             const newEntry = {
                 id: 'e_' + Date.now(),
-                clientId,
+                clientId: client.id,
                 date,
                 hours,
                 notes,
                 type: entryType,
                 timeFrom: timeFrom,
-                timeTo: timeTo
+                timeTo: timeTo,
+                kms: kms
             };
 
-            activePeriod.entries.push(newEntry);
+            if (!targetPeriod.entries) targetPeriod.entries = [];
+            targetPeriod.entries.push(newEntry);
+            
+            // Adjust the calendar month view date to follow the new entry's month!
+            calendarViewDate = new Date(date + 'T00:00:00');
+
             saveState();
             render();
 
@@ -2050,6 +2468,9 @@ function setupEventListeners() {
                 return;
             }
 
+            const elKms = document.getElementById('edit-entry-kms');
+            const kms = elKms ? parseFloat(elKms.value) || 0 : 0;
+
             // Update details
             entry.date = date;
             entry.hours = hours;
@@ -2057,9 +2478,72 @@ function setupEventListeners() {
             entry.type = entryType;
             entry.timeFrom = timeFrom;
             entry.timeTo = timeTo;
+            entry.kms = kms;
             if ('time' in entry) {
                 delete entry.time;
             }
+
+            // If the date has changed to fall outside the current period
+            if (date < activePeriod.start || date > activePeriod.end) {
+                // Find target period for the new date
+                let targetPeriod = state.periods.find(p => date >= p.start && date <= p.end);
+                
+                if (!targetPeriod) {
+                    // No period covers this date. Let's auto-create a monthly period for this date!
+                    const entryDateObj = new Date(date + 'T00:00:00');
+                    const yyyy = entryDateObj.getFullYear();
+                    const mm = (entryDateObj.getMonth() + 1).toString().padStart(2, '0');
+                    
+                    const lastDay = new Date(yyyy, entryDateObj.getMonth() + 1, 0).getDate();
+                    const startOfEntryMonth = `${yyyy}-${mm}-01`;
+                    const endOfEntryMonth = `${yyyy}-${mm}-${lastDay.toString().padStart(2, '0')}`;
+                    const newPeriodId = `${startOfEntryMonth}_${endOfEntryMonth}`;
+                    
+                    targetPeriod = state.periods.find(p => p.id === newPeriodId);
+                    
+                    if (!targetPeriod) {
+                        const copiedClients = JSON.parse(JSON.stringify(activePeriod.clients));
+                        copiedClients.forEach(c => {
+                            delete c.hidden;
+                        });
+                        
+                        targetPeriod = {
+                            id: newPeriodId,
+                            start: startOfEntryMonth,
+                            end: endOfEntryMonth,
+                            clients: copiedClients,
+                            entries: []
+                        };
+                        state.periods.push(targetPeriod);
+                        showToastNotification(`Automatically created a new monthly period worksheet for ${formatDate(startOfEntryMonth).split(',')[1].trim().split(' ')[0]} ${yyyy}!`, 'success');
+                    }
+                }
+
+                // Switch to the target period
+                state.activePeriodId = targetPeriod.id;
+
+                // Remove entry from the old period
+                activePeriod.entries = activePeriod.entries.filter(e => e.id !== entry.id);
+
+                // Make sure the client exists in targetPeriod
+                let targetClient = targetPeriod.clients.find(c => c.id === entry.clientId);
+                if (!targetClient) {
+                    targetClient = targetPeriod.clients.find(c => c.name.toLowerCase() === client.name.toLowerCase());
+                }
+                if (!targetClient) {
+                    targetClient = targetPeriod.clients[0];
+                }
+                if (targetClient) {
+                    entry.clientId = targetClient.id;
+                }
+
+                // Push to targetPeriod
+                if (!targetPeriod.entries) targetPeriod.entries = [];
+                targetPeriod.entries.push(entry);
+            }
+
+            // Adjust calendarMonthView date to match the entry's date!
+            calendarViewDate = new Date(date + 'T00:00:00');
 
             saveState();
             render();

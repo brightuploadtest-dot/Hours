@@ -1,0 +1,47 @@
+# Task List - Weekday Date Display & Interactive Schedule Calendar
+
+- [x] 1. Show Weekdays Next to Dates globally (`app.js`)
+  - [x] Prepend weekday abbreviations (e.g. `Fri, May 22`) in both short and long date utility functions.
+  - [x] Protect layout boundaries in client cards grid to prevent wrapping using `white-space: nowrap`.
+- [x] 2. Add Weekdays to Modal Headers & Form Labels (`index.html`, `app.js`)
+  - [x] Add dynamic subtitle containing full weekday name to the Edit Entry modal (e.g. `Client Name — Fri, May 22, 2026`).
+  - [x] Add real-time interactive weekday suffix helper to Date input labels in both Add and Edit modals.
+- [x] 3. Create Interactive Schedule Calendar Component (`index.html`, `style.css`, `app.js`)
+  - [x] Insert grid layout skeleton in `index.html` below the main clients grid columns.
+  - [x] Add standard Outlook-like multi-week style grid CSS rules to `style.css` (with responsive mobile overrides).
+  - [x] Implement dynamic calendar rendering engine (`renderCalendar`) in `app.js` using active period bounds.
+  - [x] Plot logged (gold capsule) and planned (dashed indigo capsule) hours dynamically inside day cells.
+  - [x] Add interactive cell click listener (pre-fills Date and opens Add Entry modal).
+  - [x] Add interactive entry pill click listener (opens Edit Entry modal).
+- [x] 4. Personalized Client Color Schemes (`style.css`, `app.js`)
+  - [x] Map Ryan to vibrant Red (#ef4444).
+  - [x] Map Jamie to electric Purple (#a855f7).
+  - [x] Map Tyler to warm Orange (#f97316).
+  - [x] Map Adrian to light Yellow (#facc15).
+  - [x] Map Noah to Cyan/light blue (#06b6d4).
+  - [x] Style client column battery segments (filled and planned) and calendar pills dynamically.
+- [x] 5. High-Contrast Used vs Planned Calendar Pills (`style.css`)
+  - [x] Redefine Used/Actual hours pills to use solid, dark colored backgrounds and white/high-contrast text.
+  - [x] Keep Future/Planned hours pills light, translucent, and styled with dashed borders.
+- [x] 6. Integrated Calendar Period Selector & Actions (`index.html`, `app.js`)
+  - [x] Add period selector dropdown adjacent to the calendar legend in the header bar.
+  - [x] Add "New / Edit" button adjacent to the calendar period select dropdown to trigger the Period Modal directly from the calendar.
+  - [x] Populate calendar dropdown select options dynamically and synchronize selection state with main top dropdown.
+- [x] 7. Time Entry Support on Any Day, Month, or Year (`app.js`, `style.css`)
+  - [x] Decouple calendar grid rendering from the active period limits to support month-by-month navigation.
+  - [x] Add Month/Year header label and Previous Month (<) / Next Month (>) button controls to the calendar header.
+  - [x] Display all time entries across all period worksheets on the calendar matching the viewed month.
+  - [x] Automatically switch the active period worksheet when clicking/editing calendar entry pills.
+  - [x] Route new/edited entries to appropriate period worksheets. If no period covers the date (e.g. August 21st), automatically create a monthly period worksheet carrying over client contracts.
+  - [x] Enable clicking on all day cells (including out-of-month grayed-out days) to launch the Add Entry modal.
+- [x] 8. Service Worker Cache Updates (`service-worker.js`)
+  - [x] Bump service worker cache version to `v21` to invalidate previous cache assets and force client reload.
+- [x] 9. Walkthrough Documentation (`walkthrough.md`)
+  - [x] Document weekday formatting changes, inner modal features, calendar, color codes, high contrast pills, calendar period select, monthly navigation, and auto-creation of worksheets.
+  - [x] Add manual verification guidelines for all new features.
+- [x] 10. Client Mileage Tracking (Kms)
+  - [x] Add distance (Kms) optional input field to Add and Edit entry modals (`index.html`).
+  - [x] Aggregated total mileage display (Total Distance) in main dashboard's summary bar (`index.html`, `app.js`).
+  - [x] Display individual mileage totals per client in their details views (`index.html`, `app.js`) and client cards (`app.js`).
+  - [x] Show Kms details inside calendar pills and hover tooltips (`app.js`).
+  - [x] Bump service worker cache version to `v22` to force update (`service-worker.js`).
