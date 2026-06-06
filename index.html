@@ -22,28 +22,55 @@
 <body>
     <div class="app-container">
         <!-- Header -->
+        <!-- Header -->
         <header class="app-header">
-            <div class="header-logo">
+            <div class="header-logo" id="nav-logo-btn" style="cursor: pointer;">
                 <div class="logo-icon"><i class="fa-solid fa-clock-rotate-left"></i></div>
-                <h1>Client Hours</h1>
+                <h1>CareTrack</h1>
             </div>
-            <div class="header-actions">
-                <button id="btn-manage-hidden" class="btn btn-secondary" style="display: none;" title="Manage Hidden Columns">
-                    <i class="fa-solid fa-eye-slash"></i> Hidden (<span id="hidden-count">0</span>)
+            
+            <!-- Navigation Tabs -->
+            <nav class="app-nav">
+                <button class="nav-item active" id="nav-btn-dashboard" data-tab="dashboard">
+                    <i class="fa-solid fa-grip"></i> <span>Dashboard</span>
                 </button>
-                <button id="btn-trigger-sync" class="btn btn-secondary" title="Data Sync & Backups">
-                    <i class="fa-solid fa-arrows-spin" id="btn-sync-icon"></i> Sync / Backup <span id="sync-status-dot" class="sync-dot offline"></span>
+                <button class="nav-item" id="nav-btn-profile" data-tab="profile">
+                    <i class="fa-solid fa-user"></i> <span>Client Profile</span>
                 </button>
-                <button id="btn-add-client" class="btn btn-secondary">
-                    <i class="fa-solid fa-user-plus"></i> Add Client
+                <button class="nav-item" id="nav-btn-log" data-tab="log">
+                    <i class="fa-solid fa-clock"></i> <span>Log Session</span>
                 </button>
-                <button id="btn-add-entry" class="btn btn-primary">
-                    <i class="fa-solid fa-plus"></i> Add Entry
+                <button class="nav-item" id="nav-btn-progress" data-tab="progress">
+                    <i class="fa-solid fa-chart-line"></i> <span>Progress</span>
                 </button>
+            </nav>
+
+            <div class="header-right-controls">
+                <div class="search-bar-wrapper">
+                    <i class="fa-solid fa-magnifying-glass search-icon"></i>
+                    <input type="text" id="header-search-input" placeholder="Search clients..." autocomplete="off">
+                </div>
+
+                <!-- Legacy Header Actions (Hidden for compatibility) -->
+                <div class="header-actions" style="display: none;">
+                    <button id="btn-manage-hidden" class="btn btn-secondary" style="display: none;" title="Manage Hidden Columns">
+                        <i class="fa-solid fa-eye-slash"></i> Hidden (<span id="hidden-count">0</span>)
+                    </button>
+                    <button id="btn-trigger-sync" class="btn btn-secondary" title="Data Sync & Backups">
+                        <i class="fa-solid fa-arrows-spin" id="btn-sync-icon"></i> Sync / Backup <span id="sync-status-dot" class="sync-dot offline"></span>
+                    </button>
+                    <button id="btn-add-client" class="btn btn-secondary">
+                        <i class="fa-solid fa-user-plus"></i> Add Client
+                    </button>
+                    <button id="btn-add-entry" class="btn btn-primary">
+                        <i class="fa-solid fa-plus"></i> Add Entry
+                    </button>
+                </div>
             </div>
         </header>
 
-        <!-- Sub-Header / Billing Period Selector -->
+        <div id="view-dashboard" class="fade-in">
+            <!-- Sub-Header / Billing Period Selector -->
         <div class="period-selector-bar">
             <div class="period-info">
                 <i class="fa-solid fa-calendar-days" style="color: var(--primary-hover); font-size: 1rem;"></i>
@@ -60,20 +87,32 @@
         <!-- Summary Bar -->
         <section class="summary-bar" id="summary-bar">
             <div class="summary-card" id="card-assigned-trigger" style="cursor: pointer; transition: transform 120ms ease, box-shadow 120ms ease;" title="Manage assigned hours for all active clients">
+                <div class="summary-card-header">
+                    <span class="summary-label">Assigned <i class="fa-solid fa-pen-to-square" style="font-size: 0.75rem; opacity: 0.7; margin-left: 2px;"></i></span>
+                    <span class="trend-badge" id="trend-assigned"></span>
+                </div>
                 <span class="summary-num" id="total-assigned">0</span>
-                <span class="summary-label">Assigned <i class="fa-solid fa-pen-to-square" style="font-size: 0.75rem; opacity: 0.7; margin-left: 2px;"></i></span>
             </div>
             <div class="summary-card used">
+                <div class="summary-card-header">
+                    <span class="summary-label">Used</span>
+                    <span class="trend-badge" id="trend-used"></span>
+                </div>
                 <span class="summary-num" id="total-used">0</span>
-                <span class="summary-label">Used</span>
             </div>
             <div class="summary-card left">
+                <div class="summary-card-header">
+                    <span class="summary-label">Remaining</span>
+                    <span class="trend-badge" id="trend-remaining"></span>
+                </div>
                 <span class="summary-num" id="total-remaining">0</span>
-                <span class="summary-label">Remaining</span>
             </div>
             <div class="summary-card kms">
+                <div class="summary-card-header">
+                    <span class="summary-label">Total Distance</span>
+                    <span class="trend-badge" id="trend-kms"></span>
+                </div>
                 <span class="summary-num" id="total-kms">0</span>
-                <span class="summary-label">Total Distance</span>
             </div>
         </section>
 
@@ -81,66 +120,423 @@
         <div class="mobile-hint">
             <i class="fa-solid fa-arrows-left-right"></i> Swipe to view more clients
         </div>
-
-        <!-- Main Clients Grid -->
         <main class="clients-grid" id="clients-grid">
             <!-- Dynamic Client Cards Rendered via JS -->
         </main>
 
-        <!-- Calendar Section -->
-        <section class="calendar-section" id="calendar-section">
-            <div class="calendar-card">
-                <div class="calendar-header-bar">
-                    <div class="calendar-header-title" style="display: flex; align-items: center; gap: 0.75rem;">
-                        <i class="fa-solid fa-calendar-days"></i>
-                        <div>
-                            <h3 style="margin: 0; font-size: 1.1rem; font-weight: 700; color: var(--fg-color);">Schedule Calendar</h3>
-                            <div class="calendar-navigation-controls" style="display: flex; align-items: center; gap: 0.5rem; margin-top: 4px;">
-                                <button id="btn-calendar-prev-month" class="btn-calendar-nav" title="Previous Month" style="background: var(--bg-hover); border: 1px solid var(--border-color); color: var(--fg-color); border-radius: 4px; padding: 2px 6px; cursor: pointer; font-size: 0.75rem; display: inline-flex; align-items: center; justify-content: center; height: 24px; width: 24px;">
-                                    <i class="fa-solid fa-chevron-left"></i>
-                                </button>
-                                <span id="calendar-month-year-label" style="font-weight: 700; font-size: 0.85rem; color: var(--text-color); min-width: 90px; text-align: center; display: inline-block;">May 2026</span>
-                                <button id="btn-calendar-next-month" class="btn-calendar-nav" title="Next Month" style="background: var(--bg-hover); border: 1px solid var(--border-color); color: var(--fg-color); border-radius: 4px; padding: 2px 6px; cursor: pointer; font-size: 0.75rem; display: inline-flex; align-items: center; justify-content: center; height: 24px; width: 24px;">
-                                    <i class="fa-solid fa-chevron-right"></i>
+        <!-- Bottom Layout Section (Calendar + Recent Activity) -->
+        <div class="dashboard-bottom-section">
+            <!-- Calendar Section -->
+            <section class="calendar-section" id="calendar-section">
+                <div class="calendar-card">
+                    <div class="calendar-header-bar">
+                        <div class="calendar-header-title" style="display: flex; align-items: center; gap: 0.75rem;">
+                            <i class="fa-solid fa-calendar-days"></i>
+                            <div>
+                                <h3 style="margin: 0; font-size: 1.1rem; font-weight: 700; color: var(--fg-color);">Schedule Calendar</h3>
+                                <div class="calendar-navigation-controls" style="display: flex; align-items: center; gap: 0.5rem; margin-top: 4px;">
+                                    <button id="btn-calendar-prev-month" class="btn-calendar-nav" title="Previous Month" style="background: var(--bg-hover); border: 1px solid var(--border-color); color: var(--fg-color); border-radius: 4px; padding: 2px 6px; cursor: pointer; font-size: 0.75rem; display: inline-flex; align-items: center; justify-content: center; height: 24px; width: 24px;">
+                                        <i class="fa-solid fa-chevron-left"></i>
+                                    </button>
+                                    <span id="calendar-month-year-label" style="font-weight: 700; font-size: 0.85rem; color: var(--text-color); min-width: 90px; text-align: center; display: inline-block;">May 2026</span>
+                                    <button id="btn-calendar-next-month" class="btn-calendar-nav" title="Next Month" style="background: var(--bg-hover); border: 1px solid var(--border-color); color: var(--fg-color); border-radius: 4px; padding: 2px 6px; cursor: pointer; font-size: 0.75rem; display: inline-flex; align-items: center; justify-content: center; height: 24px; width: 24px;">
+                                        <i class="fa-solid fa-chevron-right"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="calendar-legend-container" style="display: flex; align-items: center; gap: 1.5rem; flex-wrap: wrap;">
+                            <div class="calendar-legend">
+                                <span class="legend-item"><span class="legend-dot actual"></span> Logged / Used</span>
+                                <span class="legend-item"><span class="legend-dot planned"></span> Future Plan</span>
+                            </div>
+                            <div class="calendar-period-selector" style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+                                <span class="period-label" style="font-size: 0.85rem; font-weight: 600; color: var(--text-muted); white-space: nowrap;">Period:</span>
+                                <select id="calendar-period-select" class="period-dropdown-select" title="Switch between active tracking periods on the calendar" style="padding: 4px 28px 4px 12px; font-size: 0.85rem; height: auto; margin: 0;">
+                                    <!-- Populated dynamically via JS -->
+                                </select>
+                                <button id="btn-calendar-change-period" class="btn-period-edit" title="Create or Edit Periods directly from the calendar" style="font-size: 0.8rem; padding: 4px 10px; border-radius: 6px; white-space: nowrap; height: 32px; display: inline-flex; align-items: center; gap: 4px; margin: 0;">
+                                    <i class="fa-solid fa-calendar-plus"></i> New / Edit
                                 </button>
                             </div>
                         </div>
                     </div>
-                    <div class="calendar-legend-container" style="display: flex; align-items: center; gap: 1.5rem; flex-wrap: wrap;">
-                        <div class="calendar-legend">
-                            <span class="legend-item"><span class="legend-dot actual"></span> Logged / Used</span>
-                            <span class="legend-item"><span class="legend-dot planned"></span> Future Plan</span>
+                    
+                    <div class="calendar-wrapper">
+                        <!-- Weekdays Row -->
+                        <div class="calendar-weekdays">
+                            <div>Sun</div>
+                            <div>Mon</div>
+                            <div>Tue</div>
+                            <div>Wed</div>
+                            <div>Thu</div>
+                            <div>Fri</div>
+                            <div>Sat</div>
                         </div>
-                        <div class="calendar-period-selector" style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
-                            <span class="period-label" style="font-size: 0.85rem; font-weight: 600; color: var(--text-muted); white-space: nowrap;">Period:</span>
-                            <select id="calendar-period-select" class="period-dropdown-select" title="Switch between active tracking periods on the calendar" style="padding: 4px 28px 4px 12px; font-size: 0.85rem; height: auto; margin: 0;">
-                                <!-- Populated dynamically via JS -->
-                            </select>
-                            <button id="btn-calendar-change-period" class="btn-period-edit" title="Create or Edit Periods directly from the calendar" style="font-size: 0.8rem; padding: 4px 10px; border-radius: 6px; white-space: nowrap; height: 32px; display: inline-flex; align-items: center; gap: 4px; margin: 0;">
-                                <i class="fa-solid fa-calendar-plus"></i> New / Edit
-                            </button>
+                        <!-- Days Grid -->
+                        <div class="calendar-days-grid" id="calendar-days-grid">
+                            <!-- Populated dynamically via JS -->
                         </div>
                     </div>
                 </div>
-                
-                <div class="calendar-wrapper">
-                    <!-- Weekdays Row -->
-                    <div class="calendar-weekdays">
-                        <div>Sun</div>
-                        <div>Mon</div>
-                        <div>Tue</div>
-                        <div>Wed</div>
-                        <div>Thu</div>
-                        <div>Fri</div>
-                        <div>Sat</div>
+            </section>
+
+            <!-- Recent Activity Sidebar -->
+            <aside class="recent-activity-card">
+                <div class="activity-header">
+                    <h3>Recent Activity</h3>
+                    <span class="activity-sub">This Period</span>
+                </div>
+                <div class="activity-timeline" id="recent-activity-timeline">
+                    <!-- Dynamic Activity Items Rendered via JS -->
+                </div>
+            </aside>
+        </div> <!-- End of #view-dashboard -->
+        </div>
+
+        <!-- Client Profile View -->
+        <div id="view-profile" class="hidden fade-in">
+            <!-- Client selector to switch profiles when on this page -->
+            <div class="profile-header-selector-bar">
+                <div class="profile-select-container">
+                    <label for="profile-client-select-dropdown">Select Profile:</label>
+                    <select id="profile-client-select-dropdown" class="period-dropdown-select" title="Switch between client profiles">
+                        <!-- Populated dynamically -->
+                    </select>
+                </div>
+            </div>
+
+            <!-- Profile Banner & Info Card -->
+            <div class="profile-hero-card">
+                <div class="profile-banner"></div>
+                <div class="profile-hero-content">
+                    <div class="profile-hero-left">
+                        <div class="profile-avatar-circle" id="profile-avatar-display">SM</div>
+                        <div class="profile-meta-info">
+                            <div class="profile-name-row">
+                                <h2 id="profile-name-display">Sarah Mitchell</h2>
+                                <span class="badge badge-green" id="profile-status-display">Active</span>
+                            </div>
+                            <p class="profile-subtitle-text" id="profile-subtitle-display">Daily Living Support &middot; Client since March 15, 2024</p>
+                        </div>
                     </div>
-                    <!-- Days Grid -->
-                    <div class="calendar-days-grid" id="calendar-days-grid">
-                        <!-- Populated dynamically via JS -->
+                    <div class="profile-hero-actions">
+                        <button class="btn btn-secondary" id="btn-profile-message" title="Send message to client care team">
+                            <i class="fa-solid fa-message"></i> Message
+                        </button>
+                        <button class="btn btn-primary" id="btn-profile-edit" title="Edit client profile details">
+                            <i class="fa-solid fa-pen-to-square"></i> Edit Profile
+                        </button>
                     </div>
                 </div>
             </div>
-        </section>
+
+            <!-- Profile Hours Metrics Grid -->
+            <section class="profile-metrics-card">
+                <div class="profile-metrics-grid">
+                    <div class="profile-metric-col">
+                        <span class="profile-metric-label">Assigned Hours</span>
+                        <div class="profile-metric-value" id="profile-assigned-hours">20h</div>
+                        <span class="profile-metric-subtext">per month</span>
+                    </div>
+                    <div class="profile-metric-divider"></div>
+                    <div class="profile-metric-col">
+                        <span class="profile-metric-label">Hours Used</span>
+                        <div class="profile-metric-value blue" id="profile-used-hours">14.5h</div>
+                        <span class="profile-metric-subtext">this month</span>
+                    </div>
+                    <div class="profile-metric-divider"></div>
+                    <div class="profile-metric-col">
+                        <span class="profile-metric-label">Remaining</span>
+                        <div class="profile-metric-value green" id="profile-remaining-hours">5.5h</div>
+                        <span class="profile-metric-subtext">available</span>
+                    </div>
+                </div>
+                <div class="profile-progress-bar-wrapper">
+                    <div class="profile-progress-bar-label-row">
+                        <span>Monthly Progress</span>
+                        <span id="profile-progress-percent">73%</span>
+                    </div>
+                    <div class="profile-progress-track">
+                        <div class="profile-progress-fill" id="profile-progress-fill" style="width: 73%;"></div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Columns Layout -->
+            <div class="profile-details-columns">
+                <!-- Left: Contact info -->
+                <aside class="profile-contact-card">
+                    <h3>Contact Information</h3>
+                    <div class="contact-info-list">
+                        <div class="contact-info-item">
+                            <div class="contact-icon blue"><i class="fa-solid fa-phone"></i></div>
+                            <div class="contact-item-text">
+                                <span class="contact-label">Phone</span>
+                                <span class="contact-val" id="profile-phone-display">(555) 123-4567</span>
+                            </div>
+                        </div>
+                        <div class="contact-info-item">
+                            <div class="contact-icon blue"><i class="fa-solid fa-envelope"></i></div>
+                            <div class="contact-item-text">
+                                <span class="contact-label">Email</span>
+                                <span class="contact-val" id="profile-email-display">sarah.m@email.com</span>
+                            </div>
+                        </div>
+                        <div class="contact-info-item">
+                            <div class="contact-icon blue"><i class="fa-solid fa-location-dot"></i></div>
+                            <div class="contact-item-text">
+                                <span class="contact-label">Address</span>
+                                <span class="contact-val" id="profile-address-display">123 Oak Street, Portland, OR 97201</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="emergency-contact-box">
+                        <span class="emergency-label"><i class="fa-solid fa-triangle-exclamation"></i> Emergency Contact</span>
+                        <div class="emergency-details">
+                            <strong id="profile-emergency-name">Tom Mitchell</strong>
+                            <span class="relation-badge" id="profile-emergency-relation">Spouse</span>
+                            <div class="emergency-phone" id="profile-emergency-phone">(555) 987-6543</div>
+                        </div>
+                    </div>
+                </aside>
+
+                <!-- Right: Tabbed Content -->
+                <section class="profile-content-section">
+                    <nav class="profile-tabs">
+                        <button class="profile-tab-item active" id="tab-btn-sessions" data-subtab="sessions">
+                            <i class="fa-solid fa-calendar-alt"></i> Sessions
+                        </button>
+                        <button class="profile-tab-item" id="tab-btn-goals" data-subtab="goals">
+                            <i class="fa-solid fa-heart"></i> Goals
+                        </button>
+                        <button class="profile-tab-item" id="tab-btn-notes" data-subtab="notes">
+                            <i class="fa-solid fa-file-invoice"></i> Notes
+                        </button>
+                    </nav>
+
+                    <div class="profile-tab-pane" id="pane-sessions">
+                        <div class="pane-header-row">
+                            <h3>Recent Sessions</h3>
+                            <button class="btn-link" id="profile-btn-add-session"><i class="fa-solid fa-plus"></i> Add Session</button>
+                        </div>
+                        <div class="sessions-list-container" id="profile-sessions-list">
+                            <!-- Dynamic Sessions List -->
+                        </div>
+                    </div>
+
+                    <div class="profile-tab-pane hidden" id="pane-goals">
+                        <div class="pane-header-row">
+                            <h3>Care Goals</h3>
+                            <button class="btn-link" id="profile-btn-add-goal"><i class="fa-solid fa-plus"></i> Add Goal</button>
+                        </div>
+                        <div class="goals-list-container" id="profile-goals-list">
+                            <!-- Dynamic Goals List -->
+                        </div>
+                    </div>
+
+                    <div class="profile-tab-pane hidden" id="pane-notes">
+                        <div class="pane-header-row">
+                            <h3>Care Notes</h3>
+                            <button class="btn-link" id="profile-btn-add-note"><i class="fa-solid fa-plus"></i> Add Note</button>
+                        </div>
+                        <div class="notes-list-container" id="profile-notes-list">
+                            <!-- Dynamic Notes List -->
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </div>
+
+        <!-- Progress View -->
+        <div id="view-progress" class="hidden fade-in">
+            <!-- Progress Header Block -->
+            <div class="progress-header-block">
+                <div class="progress-title-section">
+                    <h2>Progress Tracking</h2>
+                    <p class="progress-subtitle">Monitor hours usage and client progress over time</p>
+                </div>
+                <div class="progress-header-actions">
+                    <div class="progress-period-selector-bar">
+                        <i class="fa-solid fa-calendar-days" style="color: var(--primary-hover); font-size: 1rem;"></i>
+                        <span class="period-label">Period:</span>
+                        <select id="progress-period-select-dropdown" class="period-dropdown-select" title="Switch active tracking periods">
+                            <!-- Populated dynamically -->
+                        </select>
+                    </div>
+                    <button id="btn-export-progress" class="btn btn-secondary">
+                        <i class="fa-solid fa-download"></i> Export
+                    </button>
+                </div>
+            </div>
+
+            <!-- Summary Metrics Grid -->
+            <section class="progress-summary-grid">
+                <div class="progress-metric-card">
+                    <div class="metric-card-top">
+                        <div class="metric-icon-wrapper blue"><i class="fa-solid fa-clock"></i></div>
+                        <span class="metric-trend up"><i class="fa-solid fa-arrow-trend-up"></i> +12%</span>
+                    </div>
+                    <div class="metric-value" id="progress-total-logged">0h</div>
+                    <div class="metric-label">Total Hours Logged</div>
+                    <div class="metric-subtext">This year</div>
+                </div>
+                <div class="progress-metric-card">
+                    <div class="metric-card-top">
+                        <div class="metric-icon-wrapper teal"><i class="fa-solid fa-users"></i></div>
+                        <span class="metric-trend up"><i class="fa-solid fa-arrow-trend-up"></i> +2</span>
+                    </div>
+                    <div class="metric-value" id="progress-active-clients">0</div>
+                    <div class="metric-label">Active Clients</div>
+                    <div class="metric-subtext">Currently serving</div>
+                </div>
+                <div class="progress-metric-card">
+                    <div class="metric-card-top">
+                        <div class="metric-icon-wrapper purple"><i class="fa-solid fa-hourglass-half"></i></div>
+                        <span class="metric-trend down"><i class="fa-solid fa-arrow-trend-down"></i> -0.2h</span>
+                    </div>
+                    <div class="metric-value" id="progress-avg-session">0h</div>
+                    <div class="metric-label">Avg. Session Length</div>
+                    <div class="metric-subtext">Per session</div>
+                </div>
+                <div class="progress-metric-card">
+                    <div class="metric-card-top">
+                        <div class="metric-icon-wrapper green"><i class="fa-solid fa-bullseye"></i></div>
+                        <span class="metric-trend up"><i class="fa-solid fa-arrow-trend-up"></i> +4%</span>
+                    </div>
+                    <div class="metric-value" id="progress-goal-achievement">0%</div>
+                    <div class="metric-label">Goal Achievement</div>
+                    <div class="metric-subtext">Hours target met</div>
+                </div>
+            </section>
+
+            <!-- Charts Section -->
+            <div class="progress-charts-row">
+                <!-- Left Column: Monthly Hours -->
+                <div class="progress-chart-card monthly-hours-card">
+                    <div class="chart-card-header">
+                        <div class="chart-header-info">
+                            <h3>Monthly Hours</h3>
+                            <p class="chart-sub">Hours logged vs target over time</p>
+                        </div>
+                        <div class="chart-header-actions">
+                            <i class="fa-solid fa-chart-line" style="color: var(--text-muted); font-size: 1.1rem;"></i>
+                        </div>
+                    </div>
+                    <div class="monthly-progress-list" id="monthly-progress-list">
+                        <!-- Jan - May progress rows, populated dynamically or with clean styled fallbacks -->
+                        <div class="monthly-progress-item">
+                            <div class="monthly-label-row">
+                                <span class="month-name">Jan</span>
+                                <span class="month-hours">78h / 80h target</span>
+                            </div>
+                            <div class="monthly-progress-track">
+                                <div class="monthly-progress-fill blue" style="width: 97.5%;"></div>
+                            </div>
+                        </div>
+                        <div class="monthly-progress-item">
+                            <div class="monthly-label-row">
+                                <span class="month-name">Feb</span>
+                                <span class="month-hours">82h / 80h target</span>
+                            </div>
+                            <div class="monthly-progress-track">
+                                <div class="monthly-progress-fill teal" style="width: 100%;"></div>
+                            </div>
+                        </div>
+                        <div class="monthly-progress-item">
+                            <div class="monthly-label-row">
+                                <span class="month-name">Mar</span>
+                                <span class="month-hours">75h / 80h target</span>
+                            </div>
+                            <div class="monthly-progress-track">
+                                <div class="monthly-progress-fill blue" style="width: 93.75%;"></div>
+                            </div>
+                        </div>
+                        <div class="monthly-progress-item">
+                            <div class="monthly-label-row">
+                                <span class="month-name">Apr</span>
+                                <span class="month-hours">88h / 80h target</span>
+                            </div>
+                            <div class="monthly-progress-track">
+                                <div class="monthly-progress-fill teal" style="width: 100%;"></div>
+                            </div>
+                        </div>
+                        <div class="monthly-progress-item">
+                            <div class="monthly-label-row">
+                                <span class="month-name">May</span>
+                                <span class="month-hours">64h / 80h target</span>
+                            </div>
+                            <div class="monthly-progress-track">
+                                <div class="monthly-progress-fill blue" style="width: 80%;"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right Column: This Week Daily Hours Bar Chart -->
+                <div class="progress-chart-card weekly-hours-card">
+                    <div class="chart-card-header">
+                        <div class="chart-header-info">
+                            <h3>This Week</h3>
+                            <p class="chart-sub">Daily hours distribution</p>
+                        </div>
+                        <div class="chart-header-actions">
+                            <span class="weekly-total-hours-badge" id="weekly-total-hours-badge">0h total</span>
+                        </div>
+                    </div>
+                    <div class="weekly-bar-chart-container">
+                        <div class="weekly-bar-chart" id="weekly-bar-chart">
+                            <!-- Populated dynamically via JS: Mon - Sun vertical bars -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Client Hours Progress Card -->
+            <div class="progress-client-card">
+                <div class="chart-card-header">
+                    <div class="chart-header-info">
+                        <h3>Client Hours Progress</h3>
+                        <p class="chart-sub">Track individual client hour usage this month</p>
+                    </div>
+                    <a href="#" class="view-detailed-report-link" id="link-progress-detailed-report">
+                        View detailed report <i class="fa-solid fa-arrow-up-right-from-square" style="font-size: 0.75rem; margin-left: 2px;"></i>
+                    </a>
+                </div>
+                <div class="progress-client-list" id="progress-client-list">
+                    <!-- Dynamic client progress items go here -->
+                </div>
+            </div>
+
+            <!-- Bottom Summary Cards -->
+            <section class="progress-bottom-summary">
+                <div class="progress-bottom-card">
+                    <div class="bottom-card-icon blue"><i class="fa-solid fa-clock"></i></div>
+                    <div class="bottom-card-content">
+                        <div class="bottom-card-value" id="progress-bottom-assigned">0h</div>
+                        <div class="bottom-card-label">Total Assigned</div>
+                        <div class="bottom-card-subtext">This month</div>
+                    </div>
+                </div>
+                <div class="progress-bottom-card">
+                    <div class="bottom-card-icon teal"><i class="fa-solid fa-circle-check"></i></div>
+                    <div class="bottom-card-content">
+                        <div class="bottom-card-value" id="progress-bottom-used">0h</div>
+                        <div class="bottom-card-label">Hours Used</div>
+                        <div class="bottom-card-subtext" id="progress-bottom-used-pct">0% of total</div>
+                    </div>
+                </div>
+                <div class="progress-bottom-card">
+                    <div class="bottom-card-icon orange"><i class="fa-solid fa-calendar-day"></i></div>
+                    <div class="bottom-card-content">
+                        <div class="bottom-card-value" id="progress-bottom-remaining">0h</div>
+                        <div class="bottom-card-label">Remaining</div>
+                        <div class="bottom-card-subtext" id="progress-bottom-remaining-days">10 days left</div>
+                    </div>
+                </div>
+            </section>
+        </div>
 
         <!-- Footer / Sandbox Reset -->
         <footer class="app-footer">
@@ -524,6 +920,115 @@
                     </div>
                 </div>
             </div>
+        </div>
+    </div>
+
+    <!-- Modal: Edit Profile -->
+    <div class="modal-overlay" id="modal-edit-profile">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h3>Edit Client Profile</h3>
+                <button class="modal-close" data-close="modal-edit-profile"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <form id="form-edit-profile" class="modal-form">
+                <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                    <div class="form-group">
+                        <label for="edit-profile-name">Client Name</label>
+                        <input type="text" id="edit-profile-name" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="edit-profile-support">Care/Support Type</label>
+                        <input type="text" id="edit-profile-support" required>
+                    </div>
+                </div>
+                <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                    <div class="form-group">
+                        <label for="edit-profile-start-date">Client Since</label>
+                        <input type="date" id="edit-profile-start-date" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="edit-profile-status">Status</label>
+                        <select id="edit-profile-status" required>
+                            <option value="Active">Active</option>
+                            <option value="Inactive">Inactive</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                    <div class="form-group">
+                        <label for="edit-profile-phone">Phone</label>
+                        <input type="text" id="edit-profile-phone" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="edit-profile-email">Email</label>
+                        <input type="email" id="edit-profile-email" required>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="edit-profile-address">Address</label>
+                    <input type="text" id="edit-profile-address" required>
+                </div>
+                <hr style="border: 0; border-top: 1px solid var(--border-color); margin: 1rem 0;">
+                <h4 style="font-weight: 700; color: var(--fg-color); margin: 0 0 0.5rem 0;">Emergency Contact</h4>
+                <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 0.5rem;">
+                    <div class="form-group">
+                        <label for="edit-profile-em-name">Contact Name</label>
+                        <input type="text" id="edit-profile-em-name" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="edit-profile-em-relation">Relationship</label>
+                        <input type="text" id="edit-profile-em-relation" required>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="edit-profile-em-phone">Contact Phone</label>
+                    <input type="text" id="edit-profile-em-phone" required>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" data-close="modal-edit-profile">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save Changes</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal: Add Goal -->
+    <div class="modal-overlay" id="modal-add-goal">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h3>Add Care Goal</h3>
+                <button class="modal-close" data-close="modal-add-goal"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <form id="form-add-goal" class="modal-form">
+                <div class="form-group">
+                    <label for="goal-text">Goal Description</label>
+                    <input type="text" id="goal-text" required placeholder="e.g. Exercise walking for 20 mins daily" autocomplete="off">
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" data-close="modal-add-goal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save Goal</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal: Add Note -->
+    <div class="modal-overlay" id="modal-add-note">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h3>Add Care Note</h3>
+                <button class="modal-close" data-close="modal-add-note"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <form id="form-add-note" class="modal-form">
+                <div class="form-group">
+                    <label for="note-text-area">Note Details</label>
+                    <textarea id="note-text-area" required placeholder="Describe details of the care session..." rows="4" style="width: 100%; border-radius: 8px; border: 1px solid var(--border-color); padding: 0.5rem; font-family: inherit; resize: vertical; box-sizing: border-box; outline: none; background: var(--bg-hover); color: var(--fg-color);"></textarea>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" data-close="modal-add-note">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save Note</button>
+                </div>
+            </form>
         </div>
     </div>
 

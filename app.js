@@ -565,17 +565,22 @@ function getClientStats(client, period) {
 }
 
 function getOverallStats() {
+    return getOverallStatsForPeriod(getActivePeriod());
+}
+
+function getOverallStatsForPeriod(period) {
+    if (!period) return { assigned: 0, used: 0, planned: 0, remaining: 0, kms: 0 };
+    
     let totalAssigned = 0;
     let totalUsed = 0;
     let totalPlanned = 0;
     let totalKms = 0;
 
-    const activePeriod = getActivePeriod();
-    const visibleClients = activePeriod.clients.filter(c => !c.hidden);
+    const visibleClients = period.clients.filter(c => !c.hidden);
 
     visibleClients.forEach(client => {
         totalAssigned += client.hours;
-        const stats = getClientStats(client);
+        const stats = getClientStats(client, period);
         totalUsed += stats.used;
         totalPlanned += stats.planned;
         
@@ -729,20 +734,158 @@ function render() {
     autoConvertPlannedEntries();
     renderPeriodDropdown();
     renderSummaryBar();
+    renderRecentActivity();
     renderClientsGrid();
     populateClientDropdowns();
     renderHiddenClientsManager();
     renderCalendar();
+
+    // Refresh the profile page if it's currently active!
+    const viewProfile = document.getElementById('view-profile');
+    if (viewProfile && !viewProfile.classList.contains('hidden')) {
+        renderProfilePage();
+    }
+}
+
+function renderRecentActivity() {
+    const activePeriod = getActivePeriod();
+    const container = document.getElementById('recent-activity-timeline');
+    if (!container) return;
+
+    container.innerHTML = '';
+
+    const allEntries = [];
+    activePeriod.clients.forEach(client => {
+        const stats = getClientStats(client, activePeriod);
+        const entries = stats.entries || [];
+        entries.forEach(entry => {
+            allEntries.push({
+                entry,
+                client
+            });
+        });
+    });
+
+    // Sort entries descending: newest first
+    allEntries.sort((a, b) => {
+        if (a.entry.date !== b.entry.date) {
+            return b.entry.date.localeCompare(a.entry.date);
+        }
+        const timeA = a.entry.timeFrom || '00:00';
+        const timeB = b.entry.timeFrom || '00:00';
+        return timeB.localeCompare(timeA);
+    });
+
+    const recentLogs = allEntries.slice(0, 5);
+
+    if (recentLogs.length === 0) {
+        container.innerHTML = `
+            <div style="text-align: center; color: var(--text-muted); font-size: 0.8rem; padding: 2rem 0; width: 100%;">
+                <i class="fa-solid fa-circle-info" style="font-size: 1.5rem; opacity: 0.3; margin-bottom: 0.5rem; display: block;"></i>
+                No entries logged in this period.
+            </div>
+        `;
+        return;
+    }
+
+    const now = new Date();
+
+    recentLogs.forEach(log => {
+        const entry = log.entry;
+        const client = log.client;
+        
+        const split = getEntryHoursSplit(entry, now);
+        const isCompleted = split.used > 0 && split.planned === 0;
+        const isPlanned = split.planned > 0;
+        
+        // Extract initials (e.g. "Ryan B" -> "RB", "Jamie" -> "J")
+        const initials = client.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+        
+        // Match client specific color class or default to fallback
+        const colorClass = getClientColorClass(client.name) || 'client-fallback';
+        
+        let badgeClass = 'system';
+        let badgeIcon = '&middot;';
+        let text = '';
+
+        if (entry.kms > 0) {
+            badgeClass = 'kms';
+            badgeIcon = '<i class="fa-solid fa-car"></i>';
+            text = `<strong>${client.name}</strong>: Traveled ${entry.kms} Kms (${formatDisplayHours(entry.hours)}h logged)`;
+        } else if (isCompleted) {
+            badgeClass = 'completed';
+            badgeIcon = '<i class="fa-solid fa-check"></i>';
+            text = `<strong>${client.name}</strong>: Session completed - ${formatDisplayHours(entry.hours)}h`;
+        } else if (isPlanned) {
+            badgeClass = 'planned';
+            badgeIcon = '<i class="fa-solid fa-calendar"></i>';
+            text = `<strong>${client.name}</strong>: Scheduled session - ${formatDisplayHours(entry.hours)}h`;
+        } else {
+            badgeClass = 'completed';
+            badgeIcon = '<i class="fa-solid fa-clock"></i>';
+            text = `<strong>${client.name}</strong>: Logged ${formatDisplayHours(entry.hours)}h`;
+        }
+
+        if (entry.notes && entry.notes.trim()) {
+            text += ` <span style="display: block; font-size: 0.75rem; color: var(--text-muted); margin-top: 2px; font-style: italic;">"${entry.notes}"</span>`;
+        }
+
+        const dateStr = formatActivityDate(entry.date);
+
+        const item = document.createElement('div');
+        item.className = 'activity-item';
+        item.innerHTML = `
+            <div class="activity-avatar-container">
+                <div class="activity-dot ${colorClass}">
+                    ${initials}
+                </div>
+                <div class="activity-type-badge ${badgeClass}">
+                    ${badgeIcon}
+                </div>
+            </div>
+            <div class="activity-body">
+                <span class="activity-text">${text}</span>
+                <span class="activity-time">${dateStr} &middot; ${entry.timeFrom || '00:00'} - ${entry.timeTo || '00:00'}</span>
+            </div>
+        `;
+        container.appendChild(item);
+    });
+}
+
+function formatActivityDate(dateString) {
+    const parts = dateString.split('-');
+    if (parts.length !== 3) return dateString;
+    
+    const year = parseInt(parts[0]);
+    const month = parseInt(parts[1]) - 1;
+    const day = parseInt(parts[2]);
+    
+    const entryDate = new Date(year, month, day);
+    const today = new Date();
+    today.setHours(0,0,0,0);
+    
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    
+    if (entryDate.getTime() === today.getTime()) {
+        return 'Today';
+    } else if (entryDate.getTime() === yesterday.getTime()) {
+        return 'Yesterday';
+    }
+    
+    return entryDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
 // Render dynamic periods dropdown select options
 function renderPeriodDropdown() {
     const dropdown = document.getElementById('period-select-dropdown');
     const calDropdown = document.getElementById('calendar-period-select');
+    const progressDropdown = document.getElementById('progress-period-select-dropdown');
     
     const dropdowns = [];
     if (dropdown) dropdowns.push(dropdown);
     if (calDropdown) dropdowns.push(calDropdown);
+    if (progressDropdown) dropdowns.push(progressDropdown);
     
     if (dropdowns.length === 0) return;
 
@@ -773,6 +916,90 @@ function renderSummaryBar() {
     animateNumberUpdate('total-used', stats.used);
     animateNumberUpdate('total-remaining', stats.remaining);
     animateNumberUpdate('total-kms', stats.kms, true);
+
+    // Calculate trend compared to the previous period
+    const sortedPeriods = [...state.periods].sort((a, b) => new Date(a.start) - new Date(b.start));
+    const activeIdx = sortedPeriods.findIndex(p => p.id === state.activePeriodId);
+    const prevPeriod = activeIdx > 0 ? sortedPeriods[activeIdx - 1] : null;
+    
+    const trendAssigned = document.getElementById('trend-assigned');
+    const trendUsed = document.getElementById('trend-used');
+    const trendRemaining = document.getElementById('trend-remaining');
+    const trendKms = document.getElementById('trend-kms');
+
+    if (prevPeriod) {
+        const prevStats = getOverallStatsForPeriod(prevPeriod);
+        
+        // 1. Assigned Hours Trend
+        const assignedDiff = stats.assigned - prevStats.assigned;
+        if (trendAssigned) {
+            if (assignedDiff > 0) {
+                trendAssigned.className = 'trend-badge up';
+                trendAssigned.innerHTML = `<i class="fa-solid fa-arrow-up" style="font-size: 0.6rem;"></i> +${formatDisplayHours(assignedDiff)}`;
+            } else if (assignedDiff < 0) {
+                trendAssigned.className = 'trend-badge down';
+                trendAssigned.innerHTML = `<i class="fa-solid fa-arrow-down" style="font-size: 0.6rem;"></i> -${formatDisplayHours(Math.abs(assignedDiff))}`;
+            } else {
+                trendAssigned.className = 'trend-badge neutral';
+                trendAssigned.innerHTML = `<i class="fa-solid fa-minus" style="font-size: 0.6rem;"></i> 0`;
+            }
+        }
+
+        // 2. Used Hours Trend (Percentage of Assigned)
+        if (trendUsed) {
+            const usedPct = stats.assigned > 0 ? Math.round((stats.used / stats.assigned) * 100) : 0;
+            trendUsed.className = usedPct >= 75 ? 'trend-badge up' : (usedPct >= 40 ? 'trend-badge info' : 'trend-badge neutral');
+            trendUsed.innerHTML = `<i class="fa-solid fa-chart-line" style="font-size: 0.6rem;"></i> ${usedPct}%`;
+        }
+
+        // 3. Remaining Hours Trend (Percentage of Assigned)
+        if (trendRemaining) {
+            const remainingPct = stats.assigned > 0 ? Math.round((stats.remaining / stats.assigned) * 100) : 0;
+            trendRemaining.className = remainingPct > 25 ? 'trend-badge info' : (remainingPct > 0 ? 'trend-badge down' : 'trend-badge neutral');
+            trendRemaining.innerHTML = `<i class="fa-solid fa-hourglass" style="font-size: 0.6rem;"></i> ${remainingPct}%`;
+        }
+
+        // 4. Kms Trend
+        if (trendKms) {
+            const kmsDiff = stats.kms - prevStats.kms;
+            if (prevStats.kms > 0) {
+                const kmsPct = Math.round((kmsDiff / prevStats.kms) * 100);
+                if (kmsPct > 0) {
+                    trendKms.className = 'trend-badge up';
+                    trendKms.innerHTML = `<i class="fa-solid fa-arrow-up" style="font-size: 0.6rem;"></i> +${kmsPct}%`;
+                } else if (kmsPct < 0) {
+                    trendKms.className = 'trend-badge down';
+                    trendKms.innerHTML = `<i class="fa-solid fa-arrow-down" style="font-size: 0.6rem;"></i> ${kmsPct}%`;
+                } else {
+                    trendKms.className = 'trend-badge neutral';
+                    trendKms.innerHTML = `<i class="fa-solid fa-minus" style="font-size: 0.6rem;"></i> 0%`;
+                }
+            } else {
+                trendKms.className = 'trend-badge info';
+                trendKms.innerHTML = `<i class="fa-solid fa-circle-info" style="font-size: 0.6rem;"></i> new`;
+            }
+        }
+    } else {
+        // Fallbacks when no previous period exists
+        if (trendAssigned) {
+            trendAssigned.className = 'trend-badge info';
+            trendAssigned.innerHTML = `<i class="fa-solid fa-star" style="font-size: 0.6rem;"></i> active`;
+        }
+        if (trendUsed) {
+            const usedPct = stats.assigned > 0 ? Math.round((stats.used / stats.assigned) * 100) : 0;
+            trendUsed.className = 'trend-badge info';
+            trendUsed.innerHTML = `<i class="fa-solid fa-chart-line" style="font-size: 0.6rem;"></i> ${usedPct}%`;
+        }
+        if (trendRemaining) {
+            const remainingPct = stats.assigned > 0 ? Math.round((stats.remaining / stats.assigned) * 100) : 0;
+            trendRemaining.className = 'trend-badge info';
+            trendRemaining.innerHTML = `<i class="fa-solid fa-hourglass" style="font-size: 0.6rem;"></i> ${remainingPct}%`;
+        }
+        if (trendKms) {
+            trendKms.className = 'trend-badge info';
+            trendKms.innerHTML = `<i class="fa-solid fa-car" style="font-size: 0.6rem;"></i> start`;
+        }
+    }
 
     // Dynamic sub-label inside Remaining card to display Planned Hours
     const remainingCard = document.querySelector('.summary-card.left');
@@ -847,16 +1074,34 @@ function renderClientsGrid() {
     grid.innerHTML = '';
 
     const activePeriod = getActivePeriod();
-    const visibleClients = activePeriod.clients.filter(c => !c.hidden);
+    const searchInput = document.getElementById('header-search-input');
+    const query = searchInput ? searchInput.value.toLowerCase().trim() : '';
+
+    const visibleClients = activePeriod.clients.filter(c => {
+        if (c.hidden) return false;
+        if (query) {
+            return c.name.toLowerCase().includes(query);
+        }
+        return true;
+    });
 
     if (visibleClients.length === 0) {
-        grid.innerHTML = `
-            <div style="grid-column: 1 / -1; text-align: center; padding: 4rem; color: var(--text-muted);">
-                <i class="fa-solid fa-folder-open" style="font-size: 2.5rem; margin-bottom: 1rem; opacity: 0.5;"></i>
-                <p style="font-weight: 600;">No active columns visible in this period.</p>
-                <p style="font-size: 0.875rem; margin-top: 4px;">Click "+ Add Client" or restore hidden columns from the header menu.</p>
-            </div>
-        `;
+        if (query) {
+            grid.innerHTML = `
+                <div style="grid-column: 1 / -1; text-align: center; padding: 4rem; color: var(--text-muted);">
+                    <i class="fa-solid fa-magnifying-glass" style="font-size: 2.5rem; margin-bottom: 1rem; opacity: 0.5;"></i>
+                    <p style="font-weight: 600;">No clients match "${query}".</p>
+                </div>
+            `;
+        } else {
+            grid.innerHTML = `
+                <div style="grid-column: 1 / -1; text-align: center; padding: 4rem; color: var(--text-muted);">
+                    <i class="fa-solid fa-folder-open" style="font-size: 2.5rem; margin-bottom: 1rem; opacity: 0.5;"></i>
+                    <p style="font-weight: 600;">No active columns visible in this period.</p>
+                    <p style="font-size: 0.875rem; margin-top: 4px;">Click "+ Add Client" or restore hidden columns from the header menu.</p>
+                </div>
+            `;
+        }
         return;
     }
 
@@ -1353,6 +1598,13 @@ function prefillDefaultDate() {
 // ==========================================================================
 
 function openClientDetailsModal(clientId) {
+    state.activeProfileClientId = clientId;
+    activeDetailsClientId = clientId;
+    handleTabSwitch('profile');
+}
+
+// Legacy modal binder (kept as fallback for compatibility)
+function legacyOpenClientDetailsModal(clientId) {
     activeDetailsClientId = clientId;
     const activePeriod = getActivePeriod();
     const client = activePeriod.clients.find(c => c.id === clientId);
@@ -2751,6 +3003,278 @@ function setupEventListeners() {
             showToastNotification(`Successfully updated entry for client "${client.name}"!`, 'success');
         });
     }
+
+    // 1. Navigation Tab Switching Event Listeners
+    const tabButtons = document.querySelectorAll('.app-nav .nav-item');
+    tabButtons.forEach(btn => {
+        btn.addEventListener('click', () => {
+            const tabName = btn.getAttribute('data-tab');
+            handleTabSwitch(tabName);
+        });
+    });
+
+    const logoBtn = document.getElementById('nav-logo-btn');
+    if (logoBtn) {
+        logoBtn.addEventListener('click', () => {
+            handleTabSwitch('dashboard');
+        });
+    }
+
+    // 2. Real-time Search Input Listener
+    const searchInput = document.getElementById('header-search-input');
+    if (searchInput) {
+        searchInput.addEventListener('input', () => {
+            renderClientsGrid();
+            const progressView = document.getElementById('view-progress');
+            if (progressView && !progressView.classList.contains('hidden')) {
+                renderProgressClientList();
+            }
+        });
+    }
+
+    // 3. Progress Period Dropdown Listener
+    const progressPeriodDropdown = document.getElementById('progress-period-select-dropdown');
+    if (progressPeriodDropdown) {
+        progressPeriodDropdown.addEventListener('change', (e) => {
+            const selectedId = e.target.value;
+            if (state.periods.some(p => p.id === selectedId)) {
+                state.activePeriodId = selectedId;
+                activeDetailsClientId = null;
+                const period = state.periods.find(p => p.id === selectedId);
+                if (period) {
+                    calendarViewDate = new Date(period.start + 'T00:00:00');
+                }
+                saveState();
+                prefillDefaultDate();
+                render();
+                renderProgressPage();
+                showToastNotification('Switched tracking period worksheet!', 'success');
+            }
+        });
+    }
+
+    // 4. Export Progress Report to CSV Listener
+    const btnExportProgress = document.getElementById('btn-export-progress');
+    if (btnExportProgress) {
+        btnExportProgress.addEventListener('click', () => {
+            const activePeriod = getActivePeriod();
+            let csvContent = "data:text/csv;charset=utf-8,";
+            csvContent += "Client,Assigned Hours,Used Hours,Planned Hours,Remaining Hours,Status\n";
+            
+            activePeriod.clients.filter(c => !c.hidden).forEach(client => {
+                const stats = getClientStats(client);
+                const badge = getProgressBadge(stats.used, client.hours);
+                csvContent += `"${client.name}",${client.hours},${stats.used.toFixed(2)},${stats.planned.toFixed(2)},${stats.remaining.toFixed(2)},"${badge.text}"\n`;
+            });
+            
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", `client_hours_progress_${activePeriod.id}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            showToastNotification('Progress CSV report exported!', 'success');
+        });
+    }
+
+    const linkDetailedReport = document.getElementById('link-progress-detailed-report');
+    if (linkDetailedReport) {
+        linkDetailedReport.addEventListener('click', (e) => {
+            e.preventDefault();
+            if (btnExportProgress) {
+                btnExportProgress.click();
+            }
+        });
+    }
+
+    // 5. Client Profile: Dropdown Client Selector
+    const profileClientSelect = document.getElementById('profile-client-select-dropdown');
+    if (profileClientSelect) {
+        profileClientSelect.addEventListener('change', (e) => {
+            state.activeProfileClientId = e.target.value;
+            saveState();
+            renderProfilePage();
+        });
+    }
+
+    // 6. Client Profile: Tab Switching (Sessions, Goals, Notes)
+    const profileTabItems = document.querySelectorAll('.profile-tab-item');
+    profileTabItems.forEach(btn => {
+        btn.addEventListener('click', () => {
+            activeProfileSubTab = btn.getAttribute('data-subtab');
+            renderProfilePage();
+        });
+    });
+
+    // 7. Client Profile: Message Action
+    const btnProfileMessage = document.getElementById('btn-profile-message');
+    if (btnProfileMessage) {
+        btnProfileMessage.addEventListener('click', () => {
+            const activePeriod = getActivePeriod();
+            const client = activePeriod.clients.find(c => c.id === state.activeProfileClientId);
+            if (client) {
+                showToastNotification(`Opened chat channel with ${client.name}'s care team!`, 'success');
+            }
+        });
+    }
+
+    // 8. Client Profile: Open Edit Profile modal
+    const btnProfileEdit = document.getElementById('btn-profile-edit');
+    const modalProfileEdit = document.getElementById('modal-edit-profile');
+    if (btnProfileEdit && modalProfileEdit) {
+        btnProfileEdit.addEventListener('click', () => {
+            const activePeriod = getActivePeriod();
+            const client = activePeriod.clients.find(c => c.id === state.activeProfileClientId);
+            if (!client) return;
+
+            migrateClientProfileState(client);
+
+            document.getElementById('edit-profile-name').value = client.name;
+            document.getElementById('edit-profile-support').value = client.supportType;
+            document.getElementById('edit-profile-start-date').value = client.startDate;
+            document.getElementById('edit-profile-status').value = client.status;
+            document.getElementById('edit-profile-phone').value = client.phone;
+            document.getElementById('edit-profile-email').value = client.email;
+            document.getElementById('edit-profile-address').value = client.address;
+            document.getElementById('edit-profile-em-name').value = client.emergencyContactName;
+            document.getElementById('edit-profile-em-relation').value = client.emergencyContactRelation;
+            document.getElementById('edit-profile-em-phone').value = client.emergencyContactPhone;
+
+            modalProfileEdit.classList.add('active');
+        });
+    }
+
+    // 9. Client Profile: Save Edit Profile
+    const formProfileEdit = document.getElementById('form-edit-profile');
+    if (formProfileEdit) {
+        formProfileEdit.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const activePeriod = getActivePeriod();
+            const client = activePeriod.clients.find(c => c.id === state.activeProfileClientId);
+            if (!client) return;
+
+            client.name = document.getElementById('edit-profile-name').value.trim();
+            client.supportType = document.getElementById('edit-profile-support').value.trim();
+            client.startDate = document.getElementById('edit-profile-start-date').value;
+            client.status = document.getElementById('edit-profile-status').value;
+            client.phone = document.getElementById('edit-profile-phone').value.trim();
+            client.email = document.getElementById('edit-profile-email').value.trim();
+            client.address = document.getElementById('edit-profile-address').value.trim();
+            client.emergencyContactName = document.getElementById('edit-profile-em-name').value.trim();
+            client.emergencyContactRelation = document.getElementById('edit-profile-em-relation').value.trim();
+            client.emergencyContactPhone = document.getElementById('edit-profile-em-phone').value.trim();
+
+            saveState();
+            render();
+            renderProfilePage();
+
+            modalProfileEdit.classList.remove('active');
+            showToastNotification(`Profile for "${client.name}" updated successfully!`, 'success');
+        });
+    }
+
+    // 10. Client Profile: Add Session (Log time)
+    const btnProfileAddSession = document.getElementById('profile-btn-add-session');
+    if (btnProfileAddSession && modalAddEntry) {
+        btnProfileAddSession.addEventListener('click', () => {
+            const formAddEntry = document.getElementById('form-add-entry');
+            if (formAddEntry) {
+                formAddEntry.reset();
+            }
+            prefillDefaultDate();
+
+            const entryClientDropdown = document.getElementById('entry-client');
+            if (entryClientDropdown) {
+                entryClientDropdown.value = state.activeProfileClientId;
+            }
+
+            modalAddEntry.classList.add('active');
+        });
+    }
+
+    // 11. Client Profile: Add Goal Modal open & submit
+    const btnProfileAddGoal = document.getElementById('profile-btn-add-goal');
+    const modalAddGoal = document.getElementById('modal-add-goal');
+    if (btnProfileAddGoal && modalAddGoal) {
+        btnProfileAddGoal.addEventListener('click', () => {
+            const formAddGoal = document.getElementById('form-add-goal');
+            if (formAddGoal) {
+                formAddGoal.reset();
+            }
+            modalAddGoal.classList.add('active');
+        });
+    }
+
+    const formAddGoal = document.getElementById('form-add-goal');
+    if (formAddGoal) {
+        formAddGoal.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const activePeriod = getActivePeriod();
+            const client = activePeriod.clients.find(c => c.id === state.activeProfileClientId);
+            if (!client) return;
+
+            const text = document.getElementById('goal-text').value.trim();
+            if (!text) return;
+
+            if (!client.goals) client.goals = [];
+            client.goals.push({
+                id: 'g_' + Date.now(),
+                text: text,
+                completed: false
+            });
+
+            saveState();
+            renderProfilePage();
+
+            modalAddGoal.classList.remove('active');
+            showToastNotification('Care goal added successfully!', 'success');
+        });
+    }
+
+    // 12. Client Profile: Add Note Modal open & submit
+    const btnProfileAddNote = document.getElementById('profile-btn-add-note');
+    const modalAddNote = document.getElementById('modal-add-note');
+    if (btnProfileAddNote && modalAddNote) {
+        btnProfileAddNote.addEventListener('click', () => {
+            const formAddNote = document.getElementById('form-add-note');
+            if (formAddNote) {
+                formAddNote.reset();
+            }
+            modalAddNote.classList.add('active');
+        });
+    }
+
+    const formAddNote = document.getElementById('form-add-note');
+    if (formAddNote) {
+        formAddNote.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const activePeriod = getActivePeriod();
+            const client = activePeriod.clients.find(c => c.id === state.activeProfileClientId);
+            if (!client) return;
+
+            const text = document.getElementById('note-text-area').value.trim();
+            if (!text) return;
+
+            const today = new Date();
+            const dateStr = today.getFullYear() + '-' + 
+                            String(today.getMonth() + 1).padStart(2, '0') + '-' + 
+                            String(today.getDate()).padStart(2, '0');
+
+            if (!client.notes) client.notes = [];
+            client.notes.push({
+                id: 'n_' + Date.now(),
+                date: dateStr,
+                text: text
+            });
+
+            saveState();
+            renderProfilePage();
+
+            modalAddNote.classList.remove('active');
+            showToastNotification('Care note added successfully!', 'success');
+        });
+    }
 }
 
 // ==========================================================================
@@ -2808,6 +3332,832 @@ if ('serviceWorker' in navigator) {
                 });
             })
             .catch(err => console.log('Service Worker registration failed:', err));
+    });
+}
+
+// Initialize Application on Content Loaded
+document.addEventListener('DOMContentLoaded', initApp);
+
+// ==========================================================================
+// SPA TAB SWITCHING & PROGRESS VIEW RENDER ENGINE
+// ==========================================================================
+
+function handleTabSwitch(tabName) {
+    const viewDashboard = document.getElementById('view-dashboard');
+    const viewProgress = document.getElementById('view-progress');
+    const viewProfile = document.getElementById('view-profile');
+    const navItems = document.querySelectorAll('.nav-item');
+    
+    // Clear active classes from nav items
+    navItems.forEach(btn => btn.classList.remove('active'));
+
+    if (tabName === 'dashboard') {
+        if (viewDashboard) viewDashboard.classList.remove('hidden');
+        if (viewProgress) viewProgress.classList.add('hidden');
+        if (viewProfile) viewProfile.classList.add('hidden');
+        const dashBtn = document.getElementById('nav-btn-dashboard');
+        if (dashBtn) dashBtn.classList.add('active');
+        render(); // render dashboard views
+    } else if (tabName === 'progress') {
+        if (viewDashboard) viewDashboard.classList.add('hidden');
+        if (viewProgress) viewProgress.classList.remove('hidden');
+        if (viewProfile) viewProfile.classList.add('hidden');
+        const progBtn = document.getElementById('nav-btn-progress');
+        if (progBtn) progBtn.classList.add('active');
+        renderProgressPage();
+    } else if (tabName === 'profile') {
+        if (viewDashboard) viewDashboard.classList.add('hidden');
+        if (viewProgress) viewProgress.classList.add('hidden');
+        if (viewProfile) viewProfile.classList.remove('hidden');
+        const profBtn = document.getElementById('nav-btn-profile');
+        if (profBtn) profBtn.classList.add('active');
+        renderProfilePage();
+    } else if (tabName === 'log') {
+        // Keep current tab active
+        const activeTab = document.querySelector('.nav-item.active') || document.getElementById('nav-btn-dashboard');
+        if (activeTab) activeTab.classList.add('active');
+        // Open Add Entry modal
+        const modalAddEntry = document.getElementById('modal-add-entry');
+        if (modalAddEntry) {
+            const formAddEntry = document.getElementById('form-add-entry');
+            if (formAddEntry) {
+                formAddEntry.reset();
+                prefillDefaultDate();
+            }
+            modalAddEntry.classList.add('active');
+        }
+    }
+}
+
+function renderProgressPage() {
+    const activePeriod = getActivePeriod();
+    const sortedPeriods = [...state.periods].sort((a, b) => new Date(a.start) - new Date(b.start));
+    const activeIdx = sortedPeriods.findIndex(p => p.id === state.activePeriodId);
+    const prevPeriod = activeIdx > 0 ? sortedPeriods[activeIdx - 1] : null;
+    
+    // 1. Total Hours Logged (this year)
+    const activeYear = new Date(activePeriod.start + 'T00:00:00').getFullYear();
+    let totalLoggedYear = 0;
+    state.periods.forEach(p => {
+        const pYear = new Date(p.start + 'T00:00:00').getFullYear();
+        if (pYear === activeYear && p.entries) {
+            p.entries.forEach(e => {
+                if (e.type !== 'planned') {
+                    totalLoggedYear += e.hours;
+                }
+            });
+        }
+    });
+    
+    const totalLoggedEl = document.getElementById('progress-total-logged');
+    if (totalLoggedEl) {
+        totalLoggedEl.textContent = `${formatDisplayHours(totalLoggedYear)}h`;
+    }
+    
+    // Trend for Logged
+    let currentPeriodLogged = 0;
+    activePeriod.entries.forEach(e => {
+        if (e.type !== 'planned') currentPeriodLogged += e.hours;
+    });
+    
+    let trendLoggedHtml = '';
+    if (prevPeriod) {
+        let prevPeriodLogged = 0;
+        prevPeriod.entries.forEach(e => {
+            if (e.type !== 'planned') prevPeriodLogged += e.hours;
+        });
+        const diff = currentPeriodLogged - prevPeriodLogged;
+        if (prevPeriodLogged > 0) {
+            const pct = Math.round((diff / prevPeriodLogged) * 100);
+            if (pct > 0) {
+                trendLoggedHtml = `<i class="fa-solid fa-arrow-trend-up"></i> +${pct}%`;
+            } else if (pct < 0) {
+                trendLoggedHtml = `<i class="fa-solid fa-arrow-trend-down"></i> ${pct}%`;
+            } else {
+                trendLoggedHtml = `<i class="fa-solid fa-minus"></i> 0%`;
+            }
+        } else {
+            trendLoggedHtml = `<i class="fa-solid fa-plus"></i> New`;
+        }
+    } else {
+        trendLoggedHtml = `<i class="fa-solid fa-minus"></i> --`;
+    }
+    
+    // Set trend in card 1
+    if (totalLoggedEl) {
+        const trendEl = totalLoggedEl.parentElement.querySelector('.metric-trend');
+        if (trendEl) {
+            trendEl.innerHTML = trendLoggedHtml;
+            trendEl.className = `metric-trend ${trendLoggedHtml.includes('down') ? 'down' : (trendLoggedHtml.includes('--') ? '' : 'up')}`;
+        }
+    }
+    
+    // 2. Active Clients
+    const activeClientsCount = activePeriod.clients.filter(c => !c.hidden).length;
+    const activeClientsEl = document.getElementById('progress-active-clients');
+    if (activeClientsEl) {
+        activeClientsEl.textContent = activeClientsCount;
+    }
+    
+    let prevClientsCount = 0;
+    if (prevPeriod) {
+        prevClientsCount = prevPeriod.clients.filter(c => !c.hidden).length;
+    }
+    const clientDiff = activeClientsCount - prevClientsCount;
+    let trendClientsHtml = '';
+    if (prevPeriod) {
+        if (clientDiff > 0) {
+            trendClientsHtml = `<i class="fa-solid fa-plus"></i> +${clientDiff}`;
+        } else if (clientDiff < 0) {
+            trendClientsHtml = `<i class="fa-solid fa-minus"></i> -${Math.abs(clientDiff)}`;
+        } else {
+            trendClientsHtml = `<i class="fa-solid fa-minus"></i> 0`;
+        }
+    } else {
+        trendClientsHtml = `<i class="fa-solid fa-minus"></i> --`;
+    }
+    
+    if (activeClientsEl) {
+        const trendEl = activeClientsEl.parentElement.querySelector('.metric-trend');
+        if (trendEl) {
+            trendEl.innerHTML = trendClientsHtml;
+            trendEl.className = `metric-trend ${trendClientsHtml.includes('-') ? 'down' : (trendClientsHtml.includes('--') ? '' : 'up')}`;
+        }
+    }
+    
+    // 3. Avg Session Length
+    const actualEntries = activePeriod.entries.filter(e => e.type !== 'planned');
+    let avgSession = 0;
+    if (actualEntries.length > 0) {
+        const total = actualEntries.reduce((sum, e) => sum + e.hours, 0);
+        avgSession = total / actualEntries.length;
+    }
+    const avgSessionEl = document.getElementById('progress-avg-session');
+    if (avgSessionEl) {
+        avgSessionEl.textContent = `${avgSession.toFixed(1)}h`;
+    }
+    
+    let prevAvgSession = 0;
+    if (prevPeriod) {
+        const prevActual = prevPeriod.entries.filter(e => e.type !== 'planned');
+        if (prevActual.length > 0) {
+            prevAvgSession = prevActual.reduce((sum, e) => sum + e.hours, 0) / prevActual.length;
+        }
+    }
+    const avgDiff = avgSession - prevAvgSession;
+    let trendAvgHtml = '';
+    if (prevPeriod) {
+        if (avgDiff > 0) {
+            trendAvgHtml = `<i class="fa-solid fa-arrow-trend-up"></i> +${avgDiff.toFixed(1)}h`;
+        } else if (avgDiff < 0) {
+            trendAvgHtml = `<i class="fa-solid fa-arrow-trend-down"></i> -${Math.abs(avgDiff).toFixed(1)}h`;
+        } else {
+            trendAvgHtml = `<i class="fa-solid fa-minus"></i> 0h`;
+        }
+    } else {
+        trendAvgHtml = `<i class="fa-solid fa-minus"></i> --`;
+    }
+    
+    if (avgSessionEl) {
+        const trendEl = avgSessionEl.parentElement.querySelector('.metric-trend');
+        if (trendEl) {
+            trendEl.innerHTML = trendAvgHtml;
+            trendEl.className = `metric-trend ${trendAvgHtml.includes('down') ? 'down' : (trendAvgHtml.includes('--') ? '' : 'up')}`;
+        }
+    }
+    
+    // 4. Goal Achievement
+    const stats = getOverallStatsForPeriod(activePeriod);
+    const goalPct = stats.assigned > 0 ? Math.round((stats.used / stats.assigned) * 100) : 0;
+    const goalEl = document.getElementById('progress-goal-achievement');
+    if (goalEl) {
+        goalEl.textContent = `${goalPct}%`;
+    }
+    
+    let prevGoalPct = 0;
+    if (prevPeriod) {
+        const prevStats = getOverallStatsForPeriod(prevPeriod);
+        prevGoalPct = prevStats.assigned > 0 ? Math.round((prevStats.used / prevStats.assigned) * 100) : 0;
+    }
+    const goalDiff = goalPct - prevGoalPct;
+    let trendGoalHtml = '';
+    if (prevPeriod) {
+        if (goalDiff > 0) {
+            trendGoalHtml = `<i class="fa-solid fa-arrow-trend-up"></i> +${goalDiff}%`;
+        } else if (goalDiff < 0) {
+            trendGoalHtml = `<i class="fa-solid fa-arrow-trend-down"></i> -${Math.abs(goalDiff)}%`;
+        } else {
+            trendGoalHtml = `<i class="fa-solid fa-minus"></i> 0%`;
+        }
+    } else {
+        trendGoalHtml = `<i class="fa-solid fa-minus"></i> --`;
+    }
+    
+    if (goalEl) {
+        const trendEl = goalEl.parentElement.querySelector('.metric-trend');
+        if (trendEl) {
+            trendEl.innerHTML = trendGoalHtml;
+            trendEl.className = `metric-trend ${trendGoalHtml.includes('down') ? 'down' : (trendGoalHtml.includes('--') ? '' : 'up')}`;
+        }
+    }
+    
+    // 5. Render Monthly Progress List
+    const monthlyList = document.getElementById('monthly-progress-list');
+    if (monthlyList) {
+        monthlyList.innerHTML = '';
+        const last5Periods = sortedPeriods.slice(-5);
+        last5Periods.forEach((p, idx) => {
+            const pStats = getOverallStatsForPeriod(p);
+            const pct = pStats.assigned > 0 ? Math.min(100, (pStats.used / pStats.assigned) * 100) : 0;
+            
+            // Extract month name or range name
+            const startD = new Date(p.start + 'T00:00:00');
+            const endD = new Date(p.end + 'T00:00:00');
+            let periodLabel = '';
+            
+            if (startD.getMonth() === endD.getMonth() && startD.getFullYear() === endD.getFullYear()) {
+                const monthName = startD.toLocaleDateString('en-US', { month: 'short' });
+                if (startD.getDate() === 1 && endD.getDate() === new Date(startD.getFullYear(), startD.getMonth() + 1, 0).getDate()) {
+                    periodLabel = `${monthName} ${startD.getFullYear()}`;
+                } else {
+                    periodLabel = `${monthName} ${startD.getDate()}–${endD.getDate()}`;
+                }
+            } else {
+                const startM = startD.toLocaleDateString('en-US', { month: 'short' });
+                const endM = endD.toLocaleDateString('en-US', { month: 'short' });
+                periodLabel = `${startM} ${startD.getDate()} – ${endM} ${endD.getDate()}`;
+            }
+            
+            const fillClass = idx % 2 === 0 ? 'blue' : 'teal';
+            
+            const item = document.createElement('div');
+            item.className = 'monthly-progress-item';
+            item.innerHTML = `
+                <div class="monthly-label-row">
+                    <span class="month-name">${periodLabel}</span>
+                    <span class="month-hours">${formatDisplayHours(pStats.used)}h / ${pStats.assigned}h target</span>
+                </div>
+                <div class="monthly-progress-track">
+                    <div class="monthly-progress-fill ${fillClass}" style="width: ${pct}%;"></div>
+                </div>
+            `;
+            monthlyList.appendChild(item);
+        });
+    }
+    
+    // 6. Render Weekly Bar Chart
+    let pivot = new Date();
+    const activeStart = new Date(activePeriod.start + 'T00:00:00');
+    const activeEnd = new Date(activePeriod.end + 'T23:59:59');
+    if (pivot < activeStart || pivot > activeEnd) {
+        pivot = activeStart;
+    }
+    const weekDays = getWeekDays(pivot);
+    
+    const dailyHours = [];
+    let weeklyTotal = 0;
+    weekDays.forEach(day => {
+        const yyyy = day.getFullYear();
+        const mm = (day.getMonth() + 1).toString().padStart(2, '0');
+        const dd = day.getDate().toString().padStart(2, '0');
+        const dateStr = `${yyyy}-${mm}-${dd}`;
+        
+        let dayHours = 0;
+        activePeriod.entries.forEach(e => {
+            if (e.date === dateStr && e.type !== 'planned') {
+                dayHours += e.hours;
+            }
+        });
+        dailyHours.push({
+            dateStr,
+            dayName: day.toLocaleDateString('en-US', { weekday: 'short' }),
+            hours: dayHours
+        });
+        weeklyTotal += dayHours;
+    });
+    
+    const weeklyTotalBadge = document.getElementById('weekly-total-hours-badge');
+    if (weeklyTotalBadge) {
+        weeklyTotalBadge.textContent = `${formatDisplayHours(weeklyTotal)}h total`;
+    }
+    
+    const barChart = document.getElementById('weekly-bar-chart');
+    if (barChart) {
+        barChart.innerHTML = '';
+        const maxDailyHours = Math.max(8, ...dailyHours.map(d => d.hours));
+        dailyHours.forEach(day => {
+            const heightPercent = (day.hours / maxDailyHours) * 100;
+            const col = document.createElement('div');
+            col.className = 'weekly-bar-column';
+            col.innerHTML = `
+                <span class="weekly-day-val">${day.hours > 0 ? formatDisplayHours(day.hours) + 'h' : ''}</span>
+                <div class="weekly-bar-wrapper" style="height: 120px;">
+                    <div class="weekly-bar-fill" style="height: ${heightPercent}%;">
+                        <div class="bar-tooltip">${day.dayName}, ${day.dateStr.split('-').slice(1).join('/')}: <strong>${formatDisplayHours(day.hours)}h</strong> logged</div>
+                    </div>
+                </div>
+                <span class="weekly-day-label">${day.dayName}</span>
+            `;
+            barChart.appendChild(col);
+        });
+    }
+    
+    // 7. Render Client Hours Progress
+    renderProgressClientList();
+    
+    // 8. Render Bottom Summary Cards
+    const bottomAssignedEl = document.getElementById('progress-bottom-assigned');
+    if (bottomAssignedEl) bottomAssignedEl.textContent = `${formatDisplayHours(stats.assigned)}h`;
+    
+    const bottomUsedEl = document.getElementById('progress-bottom-used');
+    if (bottomUsedEl) bottomUsedEl.textContent = `${formatDisplayHours(stats.used)}h`;
+    
+    const bottomUsedPctEl = document.getElementById('progress-bottom-used-pct');
+    if (bottomUsedPctEl) {
+        bottomUsedPctEl.textContent = `${goalPct}% of total`;
+    }
+    
+    const bottomRemainingEl = document.getElementById('progress-bottom-remaining');
+    if (bottomRemainingEl) bottomRemainingEl.textContent = `${formatDisplayHours(stats.remaining)}h`;
+    
+    const bottomRemainingDaysEl = document.getElementById('progress-bottom-remaining-days');
+    if (bottomRemainingDaysEl) {
+        const endDate = new Date(activePeriod.end + 'T23:59:59');
+        const now = new Date();
+        const msDiff = endDate - now;
+        const daysLeft = Math.max(0, Math.ceil(msDiff / (1000 * 60 * 60 * 24)));
+        bottomRemainingDaysEl.textContent = daysLeft > 0 ? `${daysLeft} days left` : 'Period ended';
+    }
+}
+
+function renderProgressClientList() {
+    const progressClientList = document.getElementById('progress-client-list');
+    if (!progressClientList) return;
+
+    progressClientList.innerHTML = '';
+    
+    const activePeriod = getActivePeriod();
+    const searchInput = document.getElementById('header-search-input');
+    const query = searchInput ? searchInput.value.toLowerCase().trim() : '';
+
+    const visibleClients = activePeriod.clients.filter(c => {
+        if (c.hidden) return false;
+        if (query) {
+            return c.name.toLowerCase().includes(query);
+        }
+        return true;
+    });
+
+    if (visibleClients.length === 0) {
+        progressClientList.innerHTML = `
+            <div style="text-align: center; color: var(--text-muted); padding: 2rem;">
+                No matching clients found.
+            </div>
+        `;
+        return;
+    }
+
+    visibleClients.forEach(client => {
+        const stats = getClientStats(client);
+        const colors = getClientColorValues(client.name);
+        
+        // Calculate progress percentage
+        const pct = client.hours > 0 ? Math.min(100, (stats.used / client.hours) * 100) : 0;
+        
+        // Determine status badge
+        const badge = getProgressBadge(stats.used, client.hours);
+        
+        // Avatar initials
+        const initials = client.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+        
+        // Check recent logs
+        const now = new Date();
+        const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+        const hasRecentLogs = stats.entries.some(e => {
+            if (e.type === 'planned') return false;
+            const entryDate = new Date(e.date + 'T00:00:00');
+            return entryDate >= sevenDaysAgo;
+        });
+        
+        const statusText = hasRecentLogs ? 'Active' : 'Idle';
+        const statusClass = hasRecentLogs ? 'increasing' : 'stable';
+        const statusIcon = hasRecentLogs ? '<i class="fa-solid fa-arrow-trend-up"></i>' : '<i class="fa-solid fa-minus"></i>';
+
+        const row = document.createElement('div');
+        row.className = 'progress-client-row';
+        row.addEventListener('click', () => {
+            openClientDetailsModal(client.id);
+        });
+
+        row.innerHTML = `
+            <div class="progress-client-info">
+                <div class="client-progress-avatar" style="background-color: ${colors.plannedBg}; color: ${colors.filled}; border-color: ${colors.plannedBorder};">
+                    ${initials}
+                </div>
+                <div class="client-progress-meta">
+                    <span class="client-progress-name">${client.name}</span>
+                    <span class="badge ${badge.class}">${badge.text}</span>
+                </div>
+            </div>
+            <div class="client-progress-track-wrapper">
+                <div class="client-progress-track">
+                    <div class="client-progress-fill" style="width: ${pct}%; background-color: ${colors.filled};"></div>
+                </div>
+                <span class="client-progress-hours">${formatDisplayHours(stats.used)}h / ${client.hours}h</span>
+            </div>
+            <span class="client-progress-status ${statusClass}">
+                ${statusIcon} ${statusText}
+            </span>
+        `;
+        progressClientList.appendChild(row);
+    });
+}
+
+function getWeekDays(pivotDate) {
+    const d = new Date(pivotDate);
+    const day = d.getDay(); // 0 (Sun) to 6 (Sat)
+    const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+    const monday = new Date(d.setDate(diff));
+    
+    const week = [];
+    for (let i = 0; i < 7; i++) {
+        const dayDate = new Date(monday);
+        dayDate.setDate(monday.getDate() + i);
+        week.push(dayDate);
+    }
+    return week;
+}
+
+function getProgressBadge(used, assigned) {
+    if (used >= assigned) {
+        return { text: 'Target Met', class: 'badge-green' };
+    } else if (used >= 0.8 * assigned) {
+        return { text: 'Near Limit', class: 'badge-orange' };
+    } else {
+        return { text: 'On Track', class: 'badge-blue' };
+    }
+}
+
+// ==========================================================================
+// CARETRACK CLIENT PROFILE TAB ENGINE
+// ==========================================================================
+let activeProfileSubTab = 'sessions';
+
+function migrateClientProfileState(client) {
+    if (!client.phone) client.phone = '(555) 123-4567';
+    if (!client.email) client.email = `${client.name.toLowerCase().replace(/\s+/g, '.')}@email.com`;
+    if (!client.address) client.address = '123 Oak Street, Portland, OR 97201';
+    if (!client.emergencyContactName) client.emergencyContactName = 'Tom Mitchell';
+    if (!client.emergencyContactRelation) client.emergencyContactRelation = 'Spouse';
+    if (!client.emergencyContactPhone) client.emergencyContactPhone = '(555) 987-6543';
+    if (!client.supportType) client.supportType = 'Daily Living Support';
+    if (!client.startDate) client.startDate = '2024-03-15';
+    if (!client.status) client.status = 'Active';
+    if (!client.goals) client.goals = [
+        { id: 'g1', text: 'Improve daily mobility and walking exercises', completed: false },
+        { id: 'g2', text: 'Monitor daily medication intake', completed: true },
+        { id: 'g3', text: 'Assist with grocery shopping and meal preparation', completed: false }
+    ];
+    if (!client.notes) client.notes = [
+        { id: 'n1', date: '2026-05-20', text: 'Completed grocery shopping. Client walked for 15 minutes in the garden.' },
+        { id: 'n2', date: '2026-05-17', text: 'Assisted with light housekeeping and laundry. Medication was organized.' }
+    ];
+}
+
+function renderProfilePage() {
+    const activePeriod = getActivePeriod();
+    if (!state.activeProfileClientId && activePeriod.clients.length > 0) {
+        state.activeProfileClientId = activePeriod.clients[0].id;
+    }
+
+    // Populate the selector dropdown
+    const selectDropdown = document.getElementById('profile-client-select-dropdown');
+    if (selectDropdown) {
+        selectDropdown.innerHTML = '';
+        activePeriod.clients.forEach(c => {
+            if (c.hidden) return;
+            const opt = document.createElement('option');
+            opt.value = c.id;
+            opt.textContent = c.name;
+            opt.selected = (c.id === state.activeProfileClientId);
+            selectDropdown.appendChild(opt);
+        });
+    }
+
+    const client = activePeriod.clients.find(c => c.id === state.activeProfileClientId);
+    if (!client) {
+        const profileView = document.getElementById('view-profile');
+        if (profileView) {
+            profileView.innerHTML = `
+                <div style="text-align: center; padding: 4rem; color: var(--text-muted);">
+                    <i class="fa-solid fa-user-slash" style="font-size: 3rem; margin-bottom: 1rem; opacity: 0.5;"></i>
+                    <p style="font-weight: 600;">No active clients available.</p>
+                </div>
+            `;
+        }
+        return;
+    }
+
+    migrateClientProfileState(client);
+
+    const stats = getClientStats(client);
+    const colors = getClientColorValues(client.name);
+    const initials = client.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+    
+    // Bind Hero Card
+    const avatarDisplay = document.getElementById('profile-avatar-display');
+    if (avatarDisplay) {
+        avatarDisplay.textContent = initials;
+        avatarDisplay.style.backgroundColor = colors.filled;
+        avatarDisplay.style.borderColor = 'var(--card-bg)';
+        avatarDisplay.style.color = '#ffffff';
+    }
+
+    const nameDisplay = document.getElementById('profile-name-display');
+    if (nameDisplay) nameDisplay.textContent = client.name;
+
+    const statusDisplay = document.getElementById('profile-status-display');
+    if (statusDisplay) {
+        statusDisplay.textContent = client.status;
+        statusDisplay.className = `badge ${client.status === 'Active' ? 'badge-green' : 'badge-grey'}`;
+    }
+
+    const subtitleDisplay = document.getElementById('profile-subtitle-display');
+    if (subtitleDisplay) {
+        const dateStr = client.startDate ? new Date(client.startDate + 'T00:00:00').toLocaleDateString('en-US', {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric'
+        }) : 'March 15, 2024';
+        subtitleDisplay.innerHTML = `${client.supportType} &middot; Client since ${dateStr}`;
+    }
+
+    // Bind Metrics
+    const assignedHours = document.getElementById('profile-assigned-hours');
+    if (assignedHours) assignedHours.textContent = `${formatDisplayHours(client.hours)}h`;
+
+    const usedHours = document.getElementById('profile-used-hours');
+    if (usedHours) usedHours.textContent = `${formatDisplayHours(stats.used)}h`;
+
+    const remainingHours = document.getElementById('profile-remaining-hours');
+    if (remainingHours) remainingHours.textContent = `${formatDisplayHours(stats.remaining)}h`;
+
+    const pct = client.hours > 0 ? Math.min(100, Math.round((stats.used / client.hours) * 100)) : 0;
+    const progressPercent = document.getElementById('profile-progress-percent');
+    if (progressPercent) progressPercent.textContent = `${pct}%`;
+
+    const progressFill = document.getElementById('profile-progress-fill');
+    if (progressFill) {
+        progressFill.style.width = `${pct}%`;
+        progressFill.style.backgroundColor = colors.filled;
+    }
+
+    // Bind Contact Card
+    const phoneDisplay = document.getElementById('profile-phone-display');
+    if (phoneDisplay) phoneDisplay.textContent = client.phone;
+
+    const emailDisplay = document.getElementById('profile-email-display');
+    if (emailDisplay) emailDisplay.textContent = client.email;
+
+    const addressDisplay = document.getElementById('profile-address-display');
+    if (addressDisplay) addressDisplay.textContent = client.address;
+
+    const emergencyName = document.getElementById('profile-emergency-name');
+    if (emergencyName) emergencyName.textContent = client.emergencyContactName;
+
+    const emergencyRelation = document.getElementById('profile-emergency-relation');
+    if (emergencyRelation) emergencyRelation.textContent = client.emergencyContactRelation;
+
+    const emergencyPhone = document.getElementById('profile-emergency-phone');
+    if (emergencyPhone) emergencyPhone.textContent = client.emergencyContactPhone;
+
+    // Bind Panes
+    const sessionsPane = document.getElementById('pane-sessions');
+    const goalsPane = document.getElementById('pane-goals');
+    const notesPane = document.getElementById('pane-notes');
+    
+    sessionsPane.classList.add('hidden');
+    goalsPane.classList.add('hidden');
+    notesPane.classList.add('hidden');
+
+    document.querySelectorAll('.profile-tab-item').forEach(btn => btn.classList.remove('active'));
+
+    if (activeProfileSubTab === 'sessions') {
+        sessionsPane.classList.remove('hidden');
+        const tabBtn = document.getElementById('tab-btn-sessions');
+        if (tabBtn) tabBtn.classList.add('active');
+        renderProfileSessions(client, stats);
+    } else if (activeProfileSubTab === 'goals') {
+        goalsPane.classList.remove('hidden');
+        const tabBtn = document.getElementById('tab-btn-goals');
+        if (tabBtn) tabBtn.classList.add('active');
+        renderProfileGoals(client);
+    } else if (activeProfileSubTab === 'notes') {
+        notesPane.classList.remove('hidden');
+        const tabBtn = document.getElementById('tab-btn-notes');
+        if (tabBtn) tabBtn.classList.add('active');
+        renderProfileNotes(client);
+    }
+}
+
+function renderProfileSessions(client, stats) {
+    const container = document.getElementById('profile-sessions-list');
+    if (!container) return;
+
+    container.innerHTML = '';
+    
+    const sortedEntries = [...stats.entries].sort((a, b) => {
+        const dateDiff = new Date(b.date) - new Date(a.date);
+        if (dateDiff !== 0) return dateDiff;
+        return (b.timeFrom || '').localeCompare(a.timeFrom || '');
+    });
+
+    if (sortedEntries.length === 0) {
+        container.innerHTML = `
+            <div style="text-align: center; padding: 2rem; color: var(--text-muted); font-size: 0.875rem;">
+                No sessions logged in this period.
+            </div>
+        `;
+        return;
+    }
+
+    sortedEntries.forEach(entry => {
+        let durationStr = `${formatDisplayHours(entry.hours)}h`;
+        const hoursPart = Math.floor(entry.hours);
+        const minsPart = Math.round((entry.hours - hoursPart) * 60);
+        if (hoursPart > 0 && minsPart > 0) {
+            durationStr = `${hoursPart}h ${minsPart}min`;
+        } else if (hoursPart === 0 && minsPart > 0) {
+            durationStr = `${minsPart}min`;
+        }
+
+        const dateObj = new Date(entry.date + 'T00:00:00');
+        const dateFormatted = dateObj.toLocaleDateString('en-US', {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric'
+        });
+
+        const row = document.createElement('div');
+        row.className = 'profile-session-row';
+        row.addEventListener('click', () => {
+            const modalEditEntry = document.getElementById('modal-edit-entry');
+            if (modalEditEntry) {
+                document.getElementById('edit-entry-header-title').textContent = 'Edit Time Entry';
+                document.getElementById('edit-entry-client-subtitle').textContent = client.name;
+                
+                const editIdInput = document.getElementById('edit-entry-id');
+                if (editIdInput) editIdInput.value = entry.id;
+
+                const editDateInput = document.getElementById('edit-entry-date');
+                if (editDateInput) editDateInput.value = entry.date;
+                
+                const editFromInput = document.getElementById('edit-entry-time-from');
+                if (editFromInput) editFromInput.value = entry.timeFrom || '';
+
+                const editToInput = document.getElementById('edit-entry-time-to');
+                if (editToInput) editToInput.value = entry.timeTo || '';
+
+                const editKmsInput = document.getElementById('edit-entry-kms');
+                if (editKmsInput) editKmsInput.value = entry.kms || '';
+
+                const editNotesInput = document.getElementById('edit-entry-notes');
+                if (editNotesInput) editNotesInput.value = entry.notes || '';
+
+                const editTypeRadios = document.getElementsByName('edit-entry-type');
+                editTypeRadios.forEach(radio => {
+                    radio.checked = (radio.value === entry.type);
+                });
+
+                const formEditEntry = document.getElementById('form-edit-entry');
+                if (formEditEntry) {
+                    formEditEntry.dataset.entryId = entry.id;
+                    formEditEntry.dataset.clientId = client.id;
+                }
+
+                modalEditEntry.classList.add('active');
+            }
+        });
+
+        const badgeClass = entry.type === 'planned' ? 'badge-grey' : 'badge-blue';
+        const badgeText = entry.type === 'planned' ? 'Future Plan' : 'Home Visit';
+
+        row.innerHTML = `
+            <div class="session-row-left">
+                <div class="session-icon">
+                    <i class="fa-solid fa-clock"></i>
+                </div>
+                <div class="session-meta">
+                    <div class="session-date-row">
+                        <span class="session-date-text">${dateFormatted}</span>
+                        <span class="badge ${badgeClass}">${badgeText}</span>
+                    </div>
+                    <span class="session-desc">${entry.notes || 'No session details provided.'}</span>
+                </div>
+            </div>
+            <div class="session-row-right">
+                <span class="session-duration">${durationStr}</span>
+                <i class="fa-solid fa-chevron-right session-chevron"></i>
+            </div>
+        `;
+        container.appendChild(row);
+    });
+}
+
+function renderProfileGoals(client) {
+    const container = document.getElementById('profile-goals-list');
+    if (!container) return;
+
+    container.innerHTML = '';
+
+    if (!client.goals || client.goals.length === 0) {
+        container.innerHTML = `
+            <div style="text-align: center; padding: 2rem; color: var(--text-muted); font-size: 0.875rem;">
+                No goals added yet. Click "+ Add Goal" above.
+            </div>
+        `;
+        return;
+    }
+
+    client.goals.forEach(goal => {
+        const row = document.createElement('div');
+        row.className = `goal-item-row ${goal.completed ? 'completed' : ''}`;
+        
+        row.innerHTML = `
+            <div class="goal-item-left">
+                <input type="checkbox" class="goal-checkbox" ${goal.completed ? 'checked' : ''} title="Mark goal status">
+                <span class="goal-text">${goal.text}</span>
+            </div>
+            <button class="btn-delete-item" title="Delete Goal"><i class="fa-solid fa-trash-can"></i></button>
+        `;
+
+        const chk = row.querySelector('.goal-checkbox');
+        chk.addEventListener('change', () => {
+            goal.completed = chk.checked;
+            saveState();
+            renderProfilePage();
+            showToastNotification(`Goal status updated!`, 'success');
+        });
+
+        const btnDelete = row.querySelector('.btn-delete-item');
+        btnDelete.addEventListener('click', (e) => {
+            e.stopPropagation();
+            client.goals = client.goals.filter(g => g.id !== goal.id);
+            saveState();
+            renderProfilePage();
+            showToastNotification(`Goal removed.`, 'success');
+        });
+
+        container.appendChild(row);
+    });
+}
+
+function renderProfileNotes(client) {
+    const container = document.getElementById('profile-notes-list');
+    if (!container) return;
+
+    container.innerHTML = '';
+
+    if (!client.notes || client.notes.length === 0) {
+        container.innerHTML = `
+            <div style="text-align: center; padding: 2rem; color: var(--text-muted); font-size: 0.875rem;">
+                No notes logged yet. Click "+ Add Note" above.
+            </div>
+        `;
+        return;
+    }
+
+    const sortedNotes = [...client.notes].sort((a, b) => new Date(b.date) - new Date(a.date));
+
+    sortedNotes.forEach(note => {
+        const row = document.createElement('div');
+        row.className = 'note-item-row';
+        
+        const dateObj = new Date(note.date + 'T00:00:00');
+        const dateFormatted = dateObj.toLocaleDateString('en-US', {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric'
+        });
+
+        row.innerHTML = `
+            <div class="note-item-header">
+                <span class="note-date">${dateFormatted}</span>
+                <button class="btn-delete-item" title="Delete Note"><i class="fa-solid fa-trash-can"></i></button>
+            </div>
+            <div class="note-content">${note.text}</div>
+        `;
+
+        const btnDelete = row.querySelector('.btn-delete-item');
+        btnDelete.addEventListener('click', (e) => {
+            e.stopPropagation();
+            client.notes = client.notes.filter(n => n.id !== note.id);
+            saveState();
+            renderProfilePage();
+            showToastNotification(`Note removed.`, 'success');
+        });
+
+        container.appendChild(row);
     });
 }
 
