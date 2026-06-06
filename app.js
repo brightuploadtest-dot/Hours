@@ -1232,7 +1232,16 @@ function renderCalendar() {
 
             const spanClient = document.createElement('span');
             spanClient.className = 'pill-client';
+            spanClient.style.display = 'inline-flex';
+            spanClient.style.alignItems = 'center';
+            spanClient.style.gap = '4px';
             spanClient.textContent = clientName;
+
+            if (entry.kms) {
+                const dot = document.createElement('span');
+                dot.className = 'kms-dot calendar-kms-dot';
+                spanClient.appendChild(dot);
+            }
 
             const spanHours = document.createElement('span');
             spanHours.className = 'pill-hours';
@@ -1249,12 +1258,6 @@ function renderCalendar() {
                 spanHours.textContent = `${formatEntryHours(U)} / ${formatEntryHours(entry.hours)}${entry.kms ? ` (${entry.kms} km)` : ''}`;
             } else {
                 spanHours.textContent = formatEntryHours(entry.hours) + (entry.kms ? ` (${entry.kms} km)` : '');
-            }
-
-            if (entry.kms) {
-                const dot = document.createElement('span');
-                dot.className = 'kms-dot calendar-kms-dot';
-                spanHours.appendChild(dot);
             }
 
             pill.appendChild(spanClient);
