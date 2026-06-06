@@ -1441,6 +1441,7 @@ body {
     flex-direction: column;
     gap: 4px;
     min-height: 100px;
+    min-width: 0;
     transition: background-color 150ms ease;
     position: relative;
 }
@@ -1533,6 +1534,7 @@ body {
     align-items: center;
     gap: 4px;
     cursor: pointer;
+    min-width: 0;
     transition: all 120ms ease;
     user-select: none;
     border: 1px solid transparent;
@@ -1626,6 +1628,39 @@ body {
     
     .calendar-entry-pill .pill-hours {
         display: none;
+    }
+
+    /* Prevent clipping/overflow on mobile calendar card */
+    .calendar-wrapper {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        width: 100%;
+    }
+    .calendar-weekdays,
+    .calendar-days-grid {
+        min-width: 340px;
+    }
+    .calendar-legend-container {
+        width: 100%;
+        display: flex;
+        flex-direction: column;
+        align-items: stretch !important;
+        gap: 0.75rem !important;
+    }
+    .calendar-period-selector {
+        width: 100%;
+        display: flex;
+        flex-wrap: wrap !important;
+        gap: 0.5rem !important;
+    }
+    .calendar-period-selector select {
+        flex: 1;
+        min-width: 150px;
+        width: auto;
+    }
+    .calendar-period-selector button {
+        flex: 1;
+        justify-content: center;
     }
 }
 
