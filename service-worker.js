@@ -1,4 +1,4 @@
-const CACHE_NAME = 'client-hours-cache-v29'; // Bumped cache version to v29
+const CACHE_NAME = 'client-hours-cache-v30'; // Bumped cache version to v30
 const ASSETS = [
     './index.html',
     './style.css',

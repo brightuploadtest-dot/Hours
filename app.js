@@ -2790,7 +2790,23 @@ function showToastNotification(message, type = 'success') {
 if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
         navigator.serviceWorker.register('./service-worker.js')
-            .then(reg => console.log('Service Worker registered successfully!', reg.scope))
+            .then(reg => {
+                console.log('Service Worker registered successfully!', reg.scope);
+                // Force check for updates on load
+                reg.update();
+
+                reg.addEventListener('updatefound', () => {
+                    const newWorker = reg.installing;
+                    if (newWorker) {
+                        newWorker.addEventListener('statechange', () => {
+                            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                                console.log('New version detected! Auto-reloading page...');
+                                window.location.reload();
+                            }
+                        });
+                    }
+                });
+            })
             .catch(err => console.log('Service Worker registration failed:', err));
     });
 }
