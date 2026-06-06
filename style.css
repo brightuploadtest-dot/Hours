@@ -330,11 +330,15 @@ body {
     border: 1px solid var(--muted-color);
     background-color: var(--card-bg);
     color: var(--fg-color);
-    font-size: 0.6875rem;
+    font-size: 0.75rem;
     display: flex;
     align-items: center;
     justify-content: center;
     cursor: pointer;
+    padding: 0;
+    margin: 0;
+    -webkit-appearance: none;
+    appearance: none;
     box-shadow: var(--shadow-sm);
     transition: all 120ms ease;
 }
