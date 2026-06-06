@@ -3310,6 +3310,27 @@ function showToastNotification(message, type = 'success') {
     }, 3000);
 }
 
+// Self-healing service worker cache clearing
+const CURRENT_VERSION = 'v35';
+if (localStorage.getItem('cache_cleared_version') !== CURRENT_VERSION) {
+    if (window.caches) {
+        caches.keys().then(names => {
+            for (let name of names) caches.delete(name);
+        });
+    }
+    if (navigator.serviceWorker) {
+        navigator.serviceWorker.getRegistrations().then(registrations => {
+            for (let registration of registrations) {
+                registration.unregister();
+            }
+        });
+    }
+    localStorage.setItem('cache_cleared_version', CURRENT_VERSION);
+    setTimeout(() => {
+        window.location.reload();
+    }, 200);
+}
+
 // Register Service Worker for PWA mobile installation
 if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
