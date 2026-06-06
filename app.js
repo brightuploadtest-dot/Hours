@@ -1342,8 +1342,8 @@ function renderClientsGrid() {
             segmentElements.push(segment);
         }
 
-        // Add segments to battery container
-        segmentElements.forEach(seg => battery.appendChild(seg));
+        // Add segments to battery container (reversed for normal column flexbox direction)
+        segmentElements.reverse().forEach(seg => battery.appendChild(seg));
         card.appendChild(battery);
 
         // Bottom card info details (Interactive settings gear)
@@ -3333,7 +3333,7 @@ function showToastNotification(message, type = 'success') {
 }
 
 // Self-healing service worker cache clearing
-const CURRENT_VERSION = 'v43';
+const CURRENT_VERSION = 'v44';
 if (localStorage.getItem('cache_cleared_version') !== CURRENT_VERSION) {
     if (window.caches) {
         caches.keys().then(names => {

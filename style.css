@@ -603,7 +603,8 @@ body {
 /* Battery vertical progress bar stack */
 .battery-container {
     display: flex;
-    flex-direction: column-reverse; /* Bottom-up filling */
+    flex-direction: column; /* Changed from column-reverse to support overflow alignment */
+    justify-content: flex-end; /* Align items to the bottom */
     gap: 2px;
     width: 100%;
     margin-top: auto; /* Push the battery to sit at the bottom of the card */
@@ -611,7 +612,6 @@ body {
     border-radius: 8px;
     padding: 2px;
     background-color: rgba(15, 23, 42, 0.02);
-    overflow: hidden;
 }
 
 /* Individual hour blocks inside battery */
@@ -629,7 +629,6 @@ body {
     position: relative;
     user-select: none;
     transition: all 200ms ease;
-    min-height: 0;
 }
 
 /* Empty Hour segments */
