@@ -96,6 +96,28 @@ function initApp() {
                     });
                 }
             });
+
+            // Clear mock / default client info and goals/notes once for the upgrade to v39
+            if (localStorage.getItem('database_cleaned_v39') !== 'true') {
+                state.periods.forEach(p => {
+                    if (p.clients && Array.isArray(p.clients)) {
+                        p.clients.forEach(c => {
+                            c.phone = '';
+                            c.email = '';
+                            c.address = '';
+                            c.emergencyContactName = '';
+                            c.emergencyContactRelation = '';
+                            c.emergencyContactPhone = '';
+                            c.supportType = '';
+                            c.startDate = '';
+                            c.goals = [];
+                            c.notes = [];
+                        });
+                    }
+                });
+                saveState(true);
+                localStorage.setItem('database_cleaned_v39', 'true');
+            }
         } catch (e) {
             console.error("Local storage corrupt, resetting to defaults:", e);
             resetToDefaults(false);
@@ -3311,7 +3333,7 @@ function showToastNotification(message, type = 'success') {
 }
 
 // Self-healing service worker cache clearing
-const CURRENT_VERSION = 'v37';
+const CURRENT_VERSION = 'v39';
 if (localStorage.getItem('cache_cleared_version') !== CURRENT_VERSION) {
     if (window.caches) {
         caches.keys().then(names => {
@@ -3825,24 +3847,22 @@ function getProgressBadge(used, assigned) {
 let activeProfileSubTab = 'sessions';
 
 function migrateClientProfileState(client) {
-    if (!client.phone) client.phone = '(555) 123-4567';
-    if (!client.email) client.email = `${client.name.toLowerCase().replace(/\s+/g, '.')}@email.com`;
-    if (!client.address) client.address = '123 Oak Street, Portland, OR 97201';
-    if (!client.emergencyContactName) client.emergencyContactName = 'Tom Mitchell';
-    if (!client.emergencyContactRelation) client.emergencyContactRelation = 'Spouse';
-    if (!client.emergencyContactPhone) client.emergencyContactPhone = '(555) 987-6543';
-    if (!client.supportType) client.supportType = 'Daily Living Support';
-    if (!client.startDate) client.startDate = '2024-03-15';
+    if (client.phone === '(555) 123-4567' || client.phone === undefined) client.phone = '';
+    if (client.email === `${client.name.toLowerCase().replace(/\s+/g, '.')}@email.com` || client.email === undefined) client.email = '';
+    if (client.address === '123 Oak Street, Portland, OR 97201' || client.address === undefined) client.address = '';
+    if (client.emergencyContactName === 'Tom Mitchell' || client.emergencyContactName === undefined) client.emergencyContactName = '';
+    if (client.emergencyContactRelation === 'Spouse' || client.emergencyContactRelation === undefined) client.emergencyContactRelation = '';
+    if (client.emergencyContactPhone === '(555) 987-6543' || client.emergencyContactPhone === undefined) client.emergencyContactPhone = '';
+    if (client.supportType === 'Daily Living Support' || client.supportType === undefined) client.supportType = '';
+    if (client.startDate === '2024-03-15' || client.startDate === undefined) client.startDate = '';
     if (!client.status) client.status = 'Active';
-    if (!client.goals) client.goals = [
-        { id: 'g1', text: 'Improve daily mobility and walking exercises', completed: false },
-        { id: 'g2', text: 'Monitor daily medication intake', completed: true },
-        { id: 'g3', text: 'Assist with grocery shopping and meal preparation', completed: false }
-    ];
-    if (!client.notes) client.notes = [
-        { id: 'n1', date: '2026-05-20', text: 'Completed grocery shopping. Client walked for 15 minutes in the garden.' },
-        { id: 'n2', date: '2026-05-17', text: 'Assisted with light housekeeping and laundry. Medication was organized.' }
-    ];
+    
+    if (!client.goals || (Array.isArray(client.goals) && client.goals.some(g => g.id === 'g1' || g.id === 'g2' || g.id === 'g3'))) {
+        client.goals = [];
+    }
+    if (!client.notes || (Array.isArray(client.notes) && client.notes.some(n => n.id === 'n1' || n.id === 'n2'))) {
+        client.notes = [];
+    }
 }
 
 function renderProfilePage() {
