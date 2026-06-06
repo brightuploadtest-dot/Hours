@@ -884,10 +884,10 @@ function renderClientsGrid() {
             </div>
             <div class="hours-adjuster-quick">
                 <button class="btn-quick-adjust btn-quick-minus" title="Remove 1 hour (Used/Planned)">
-                    <i class="fa-solid fa-minus"></i>
+                    &minus;
                 </button>
                 <button class="btn-quick-adjust btn-quick-plus" title="Add used/planned hours for this client">
-                    <i class="fa-solid fa-plus"></i>
+                    +
                 </button>
             </div>
         `;
@@ -1801,14 +1801,14 @@ function renderAssignedHoursManagerList() {
                 <span style="font-size: 0.75rem; color: var(--text-muted); margin-top: 2px;">${formatDisplayHours(stats.used)} hrs logged</span>
             </div>
             <div style="display: flex; align-items: center; gap: 0.75rem;">
-                <button class="btn-hour-adjust btn-decrease-assigned" title="Decrease Assigned Hours" style="width: 28px; height: 28px; font-size: 0.6875rem; padding: 0; display: flex; align-items: center; justify-content: center; border-radius: 6px; cursor: pointer; border: 1px solid var(--muted-color); background-color: var(--card-bg); color: var(--fg-color); transition: all 120ms ease;">
-                    <i class="fa-solid fa-minus"></i>
+                <button class="btn-hour-adjust btn-decrease-assigned" title="Decrease Assigned Hours" style="width: 28px; height: 28px; font-size: 0.75rem; padding: 0; display: flex; align-items: center; justify-content: center; border-radius: 6px; cursor: pointer; border: 1px solid var(--muted-color); background-color: var(--card-bg); color: var(--fg-color); transition: all 120ms ease;">
+                    &minus;
                 </button>
                 <span class="assigned-hours-display" style="font-weight: 700; font-size: 0.9375rem; color: var(--fg-color); min-width: 48px; text-align: center; display: inline-block;">
                     ${client.hours} Hrs
                 </span>
-                <button class="btn-hour-adjust btn-increase-assigned" title="Increase Assigned Hours" style="width: 28px; height: 28px; font-size: 0.6875rem; padding: 0; display: flex; align-items: center; justify-content: center; border-radius: 6px; cursor: pointer; border: 1px solid var(--muted-color); background-color: var(--card-bg); color: var(--fg-color); transition: all 120ms ease;">
-                    <i class="fa-solid fa-plus"></i>
+                <button class="btn-hour-adjust btn-increase-assigned" title="Increase Assigned Hours" style="width: 28px; height: 28px; font-size: 0.75rem; padding: 0; display: flex; align-items: center; justify-content: center; border-radius: 6px; cursor: pointer; border: 1px solid var(--muted-color); background-color: var(--card-bg); color: var(--fg-color); transition: all 120ms ease;">
+                    +
                 </button>
             </div>
         `;
