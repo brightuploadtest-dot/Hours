@@ -611,6 +611,7 @@ body {
     border-radius: 8px;
     padding: 2px;
     background-color: rgba(15, 23, 42, 0.02);
+    overflow: hidden;
 }
 
 /* Individual hour blocks inside battery */
@@ -628,6 +629,7 @@ body {
     position: relative;
     user-select: none;
     transition: all 200ms ease;
+    min-height: 0;
 }
 
 /* Empty Hour segments */
@@ -780,6 +782,7 @@ body {
     border-top: 1px solid rgba(15, 23, 42, 0.05);
     padding-top: 0.75rem;
     text-align: center;
+    min-height: 76px;
 }
 
 .client-name-title {
@@ -2894,9 +2897,9 @@ body {
     }
     
     .client-progress-hours {
-        width: auto;
-        flex: 1;
-        text-align: left;
+        width: 70px;
+        text-align: right;
+        flex-shrink: 0;
     }
     
     .client-progress-status {
