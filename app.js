@@ -3311,7 +3311,7 @@ function showToastNotification(message, type = 'success') {
 }
 
 // Self-healing service worker cache clearing
-const CURRENT_VERSION = 'v35';
+const CURRENT_VERSION = 'v36';
 if (localStorage.getItem('cache_cleared_version') !== CURRENT_VERSION) {
     if (window.caches) {
         caches.keys().then(names => {

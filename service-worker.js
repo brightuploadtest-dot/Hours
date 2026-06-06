@@ -1,4 +1,4 @@
-const CACHE_NAME = 'client-hours-cache-v35'; // Bumped cache version to v35
+const CACHE_NAME = 'client-hours-cache-v36'; // Bumped cache version to v36
 const ASSETS = [
     './index.html',
     './style.css',
@@ -34,8 +34,8 @@ self.addEventListener('activate', (e) => {
 self.addEventListener('fetch', (e) => {
     const url = new URL(e.request.url);
 
-    // Skip caching/interception for API requests and non-GET requests
-    if (e.request.method !== 'GET' || url.pathname.includes('/api/')) {
+    // Skip caching/interception for API requests, non-GET requests, and cross-origin requests
+    if (e.request.method !== 'GET' || url.pathname.includes('/api/') || url.origin !== self.location.origin) {
         return; // Hand over execution back to native browser network engine
     }
 
