@@ -145,6 +145,14 @@ function initApp() {
 
     // Start automated real-time background sync engine
     startBackgroundSyncEngine();
+
+    // Set up a 30-second interval to update in-progress times, battery segments, and details modal in real time
+    setInterval(() => {
+        render();
+        if (activeDetailsClientId) {
+            openClientDetailsModal(activeDetailsClientId);
+        }
+    }, 30000);
 }
 
 function getSyncServerUrl() {
@@ -422,17 +430,134 @@ function checkSyncConnectionStatus() {
 // CALCULATIONS & HELPER MATHS
 // ==========================================================================
 
+// Parse start and end Date objects for an entry
+function getEntryTimeRange(entry) {
+    if (!entry.date) return null;
+    
+    const dateParts = entry.date.split('-');
+    if (dateParts.length !== 3) return null;
+    
+    const year = parseInt(dateParts[0], 10);
+    const month = parseInt(dateParts[1], 10) - 1;
+    const day = parseInt(dateParts[2], 10);
+    
+    let startH = 0;
+    let startM = 0;
+    if (entry.timeFrom) {
+        const timeParts = entry.timeFrom.split(':');
+        if (timeParts.length === 2) {
+            startH = parseInt(timeParts[0], 10);
+            startM = parseInt(timeParts[1], 10);
+        }
+    }
+    
+    const startDate = new Date(year, month, day, startH, startM, 0, 0);
+    
+    let endDate = null;
+    if (entry.timeTo) {
+        const timeParts = entry.timeTo.split(':');
+        if (timeParts.length === 2) {
+            const endH = parseInt(timeParts[0], 10);
+            const endM = parseInt(timeParts[1], 10);
+            endDate = new Date(year, month, day, endH, endM, 0, 0);
+            if (endDate < startDate) {
+                // overnight entry crosses midnight
+                endDate.setDate(endDate.getDate() + 1);
+            }
+        }
+    }
+    
+    if (!endDate) {
+        // Fallback: add entry.hours duration to the start date
+        endDate = new Date(startDate.getTime() + (entry.hours || 0) * 60 * 60 * 1000);
+    }
+    
+    return { startDate, endDate };
+}
+
+// Calculate the split between used and planned hours for a time entry based on current time
+function getEntryHoursSplit(entry, now) {
+    const parsedNow = now || new Date();
+    
+    if (entry.type !== 'planned') {
+        // Actual entries are 100% used
+        return { used: entry.hours, planned: 0, isInProgress: false, progressPercent: 100 };
+    }
+    
+    const range = getEntryTimeRange(entry);
+    if (!range) {
+        return { used: 0, planned: entry.hours, isInProgress: false, progressPercent: 0 };
+    }
+    
+    const { startDate, endDate } = range;
+    
+    if (parsedNow < startDate) {
+        return { used: 0, planned: entry.hours, isInProgress: false, progressPercent: 0 };
+    } else if (parsedNow >= endDate) {
+        return { used: entry.hours, planned: 0, isInProgress: false, progressPercent: 100 };
+    } else {
+        // In Progress!
+        const totalMs = endDate - startDate;
+        if (totalMs <= 0) {
+            return { used: 0, planned: entry.hours, isInProgress: false, progressPercent: 0 };
+        }
+        
+        const elapsedMs = parsedNow - startDate;
+        const fraction = Math.min(1, Math.max(0, elapsedMs / totalMs));
+        const usedHours = entry.hours * fraction;
+        const plannedHours = entry.hours - usedHours;
+        
+        return { 
+            used: usedHours, 
+            planned: plannedHours, 
+            isInProgress: true, 
+            progressPercent: parseFloat((fraction * 100).toFixed(1)) 
+        };
+    }
+}
+
+// Return color hex and rgba codes based on client name matching CSS stylesheet values
+function getClientColorValues(clientName) {
+    const name = (clientName || '').toLowerCase();
+    if (name.includes('ryan')) {
+        return { filled: '#ef4444', plannedBg: 'rgba(239, 68, 68, 0.08)', plannedBorder: 'rgba(239, 68, 68, 0.5)' };
+    } else if (name.includes('jamie')) {
+        return { filled: '#a855f7', plannedBg: 'rgba(168, 85, 247, 0.08)', plannedBorder: 'rgba(168, 85, 247, 0.5)' };
+    } else if (name.includes('tyler')) {
+        return { filled: '#f97316', plannedBg: 'rgba(249, 115, 22, 0.08)', plannedBorder: 'rgba(249, 115, 22, 0.5)' };
+    } else if (name.includes('adrian')) {
+        return { filled: '#facc15', plannedBg: 'rgba(234, 179, 8, 0.08)', plannedBorder: 'rgba(234, 179, 8, 0.5)' };
+    } else if (name.includes('noah')) {
+        return { filled: '#06b6d4', plannedBg: 'rgba(6, 182, 212, 0.08)', plannedBorder: 'rgba(6, 182, 212, 0.5)' };
+    }
+    // Default fallback color (Gold / Amber theme)
+    return { filled: '#fbbf24', plannedBg: 'rgba(251, 191, 36, 0.08)', plannedBorder: 'rgba(251, 191, 36, 0.5)' };
+}
+
 function getClientStats(client, period) {
     const targetPeriod = period || getActivePeriod();
     const entries = targetPeriod.entries || [];
     const clientEntries = entries.filter(e => e.clientId === client.id);
     
-    // Split into Used vs Planned entries
-    const usedEntries = clientEntries.filter(e => e.type !== 'planned');
-    const plannedEntries = clientEntries.filter(e => e.type === 'planned');
+    // Sort chronologically by date and starting time
+    clientEntries.sort((a, b) => {
+        if (a.date !== b.date) {
+            return a.date.localeCompare(b.date);
+        }
+        const timeA = a.timeFrom || '00:00';
+        const timeB = b.timeFrom || '00:00';
+        return timeA.localeCompare(timeB);
+    });
     
-    const used = usedEntries.reduce((sum, e) => sum + e.hours, 0);
-    const planned = plannedEntries.reduce((sum, e) => sum + e.hours, 0);
+    let used = 0;
+    let planned = 0;
+    const now = new Date();
+    
+    clientEntries.forEach(entry => {
+        const split = getEntryHoursSplit(entry, now);
+        used += split.used;
+        planned += split.planned;
+    });
     
     const remaining = Math.max(0, client.hours - used - planned);
     
@@ -546,32 +671,11 @@ function autoConvertPlannedEntries() {
         if (period.entries && Array.isArray(period.entries)) {
             period.entries.forEach(entry => {
                 if (entry.type === 'planned') {
-                    // Parse elements carefully in local browser timezone
-                    const dateParts = entry.date.split('-');
-                    if (dateParts.length === 3) {
-                        const year = parseInt(dateParts[0], 10);
-                        const month = parseInt(dateParts[1], 10) - 1; // 0-indexed month
-                        const day = parseInt(dateParts[2], 10);
-
-                        let hours = 0;
-                        let minutes = 0;
-                        if (entry.timeFrom) {
-                            const timeParts = entry.timeFrom.split(':');
-                            if (timeParts.length === 2) {
-                                hours = parseInt(timeParts[0], 10);
-                                minutes = parseInt(timeParts[1], 10);
-                            }
-                        }
-
-                        // Create local date object
-                        const targetDate = new Date(year, month, day, hours, minutes);
-                        
-                        // If valid date and current time has reached/passed it, convert to actual (used/logged)
-                        if (!isNaN(targetDate.getTime()) && now >= targetDate) {
-                            entry.type = 'actual';
-                            changed = true;
-                            console.log(`Auto-converted entry "${entry.notes}" on ${entry.date} from planned to logged/used.`);
-                        }
+                    const range = getEntryTimeRange(entry);
+                    if (range && range.endDate && now >= range.endDate) {
+                        entry.type = 'actual';
+                        changed = true;
+                        console.log(`Auto-converted entry "${entry.notes}" on ${entry.date} from planned to logged/used because it has completed.`);
                     }
                 }
             });
@@ -685,7 +789,7 @@ function renderSummaryBar() {
             plannedLabel.style.letterSpacing = '0.05em';
             remainingCard.appendChild(plannedLabel);
         }
-        plannedLabel.textContent = `${stats.planned} Planned`;
+        plannedLabel.textContent = `${formatDisplayHours(stats.planned)} Planned`;
         plannedLabel.style.display = stats.planned > 0 ? 'inline-block' : 'none';
     }
 }
@@ -694,8 +798,15 @@ function animateNumberUpdate(elementId, targetValue, isDecimal = false) {
     const el = document.getElementById(elementId);
     if (!el) return;
     
-    const startValue = isDecimal ? (parseFloat(el.textContent) || 0) : (parseInt(el.textContent) || 0);
-    if (startValue === targetValue) return;
+    const startValue = parseFloat(el.textContent) || 0;
+    if (Math.abs(startValue - targetValue) < 0.001) {
+        if (isDecimal) {
+            el.textContent = targetValue.toFixed(1);
+        } else {
+            el.textContent = formatDisplayHours(targetValue);
+        }
+        return;
+    }
 
     const duration = 400; // ms
     const startTime = performance.now();
@@ -711,16 +822,20 @@ function animateNumberUpdate(elementId, targetValue, isDecimal = false) {
         if (isDecimal) {
             el.textContent = currentValue.toFixed(1);
         } else {
-            el.textContent = Math.round(currentValue);
+            el.textContent = formatDisplayHours(currentValue);
         }
 
         if (progress < 1) {
             requestAnimationFrame(update);
         } else {
-            el.textContent = isDecimal ? targetValue.toFixed(1) : targetValue;
+            if (isDecimal) {
+                el.textContent = targetValue.toFixed(1);
+            } else {
+                el.textContent = formatDisplayHours(targetValue);
+            }
         }
     }
-    
+
     requestAnimationFrame(update);
 }
 
@@ -838,9 +953,11 @@ function renderClientsGrid() {
                 segment.setAttribute('title', 'Click to edit time entry');
                 
                 if (isLabelSegment) {
+                    const kmsDotHtml = entry.kms ? `<span class="kms-dot" title="${entry.kms} Kms traveled"></span>` : '';
                     segment.innerHTML = `
                         <span class="segment-date">${formatShortDate(entry.date)}</span>
                         <span class="segment-hours">${formatEntryHours(entryHours)}</span>
+                        ${kmsDotHtml}
                     `;
                 }
 
@@ -873,17 +990,42 @@ function renderClientsGrid() {
         
         plannedEntries.forEach(entry => {
             const entryHours = entry.hours;
+            const split = getEntryHoursSplit(entry, new Date());
+            const isInProgress = split.isInProgress;
+            const U = split.used;
+            
             for (let i = 0; i < entryHours; i++) {
                 const isLabelSegment = (i === 0);
                 const clientColorClass = getClientColorClass(client.name);
                 const segment = document.createElement('div');
-                segment.className = `battery-segment planned ${clientColorClass}`;
-                segment.setAttribute('title', 'Future Plan: Click to edit');
+                
+                const segmentDuration = Math.min(entryHours - i, 1);
+                let usedFraction = 0;
+                if (isInProgress) {
+                    const segmentUsed = Math.max(0, Math.min(U - i, segmentDuration));
+                    usedFraction = segmentUsed / segmentDuration;
+                }
+                
+                if (isInProgress && usedFraction > 0 && usedFraction < 1) {
+                    segment.className = `battery-segment planned in-progress ${clientColorClass}`;
+                    const colors = getClientColorValues(client.name);
+                    const percent = (usedFraction * 100).toFixed(1);
+                    segment.style.background = `linear-gradient(to top, ${colors.filled} 0%, ${colors.filled} ${percent}%, ${colors.plannedBg} ${percent}%, ${colors.plannedBg} 100%)`;
+                } else if (isInProgress && usedFraction === 1) {
+                    segment.className = `battery-segment filled ${clientColorClass}`;
+                } else {
+                    segment.className = `battery-segment planned ${clientColorClass}`;
+                }
+                
+                segment.setAttribute('title', isInProgress ? 'In Progress: Click to edit Plan' : 'Future Plan: Click to edit');
                 
                 if (isLabelSegment) {
+                    const kmsDotHtml = entry.kms ? `<span class="kms-dot" title="${entry.kms} Kms traveled"></span>` : '';
+                    const textColorStyle = isInProgress ? 'color: #312e81; font-weight: 600;' : 'color: #312e81;';
                     segment.innerHTML = `
-                        <span class="segment-date" style="color: #312e81;">${formatShortDate(entry.date)}</span>
-                        <span class="segment-hours" style="color: #312e81;">${formatEntryHours(entryHours)}</span>
+                        <span class="segment-date" style="${textColorStyle}">${formatShortDate(entry.date)}</span>
+                        <span class="segment-hours" style="${textColorStyle}">${formatEntryHours(entryHours)}</span>
+                        ${kmsDotHtml}
                     `;
                 }
 
@@ -891,10 +1033,23 @@ function renderClientsGrid() {
                 const timeText = rangeText ? ` (${rangeText})` : '';
                 const tooltip = document.createElement('div');
                 tooltip.className = 'segment-tooltip';
+                
+                let headerText = `<span class="tooltip-date" style="color: #4f46e5; font-weight: 600;">🔮 Future Plan</span>`;
+                let hoursDetails = `<span class="tooltip-hours"><strong>${formatEntryHours(entry.hours)}</strong> planned</span>`;
+                
+                if (isInProgress) {
+                    const percent = split.progressPercent;
+                    headerText = `<span class="tooltip-date" style="color: #0891b2; font-weight: 600;">⚡ In Progress (${percent}% completed)</span>`;
+                    hoursDetails = `
+                        <span class="tooltip-hours" style="color: var(--primary-color);"><strong>${formatEntryHours(U)}</strong> used so far</span>
+                        <span class="tooltip-hours" style="color: #4f46e5;"><strong>${formatEntryHours(entry.hours - U)}</strong> remaining planned</span>
+                    `;
+                }
+                
                 tooltip.innerHTML = `
-                    <span class="tooltip-date" style="color: #4f46e5; font-weight: 600;">🔮 Future Plan</span>
+                    ${headerText}
                     <span class="tooltip-date">${formatDate(entry.date)}${timeText}</span>
-                    <span class="tooltip-hours"><strong>${formatEntryHours(entry.hours)}</strong> planned</span>
+                    ${hoursDetails}
                     ${entry.kms ? `<span class="tooltip-hours" style="color: #06b6d4;"><strong>${entry.kms} Kms</strong> traveled</span>` : ''}
                     ${entry.notes ? `<span class="tooltip-note">"${entry.notes}"</span>` : ''}
                     <span class="tooltip-action-prompt"><i class="fa-solid fa-pen-to-square"></i> Click block to edit plan</span>
@@ -1063,11 +1218,17 @@ function renderCalendar() {
 
             const clientColorClass = getClientColorClass(clientName);
             const pill = document.createElement('div');
-            pill.className = `calendar-entry-pill ${entry.type} ${clientColorClass}`;
+            
+            const split = getEntryHoursSplit(entry, new Date());
+            const isInProgress = split.isInProgress;
+            const U = split.used;
+            
+            pill.className = `calendar-entry-pill ${entry.type} ${isInProgress ? 'in-progress' : ''} ${clientColorClass}`;
             pill.setAttribute('data-entry-id', entry.id);
             
             const kmsSuffix = entry.kms ? `, ${entry.kms} Kms` : '';
-            pill.setAttribute('title', `${clientName}: ${formatEntryHours(entry.hours)} ${entry.type === 'planned' ? 'Planned' : 'Used'}${kmsSuffix}${entry.notes ? ' - "' + entry.notes + '"' : ''}`);
+            const inProgressTitle = isInProgress ? ` (In Progress: ${split.progressPercent}% completed)` : '';
+            pill.setAttribute('title', `${clientName}: ${formatEntryHours(entry.hours)} ${entry.type === 'planned' ? 'Planned' : 'Used'}${inProgressTitle}${kmsSuffix}${entry.notes ? ' - "' + entry.notes + '"' : ''}`);
 
             const spanClient = document.createElement('span');
             spanClient.className = 'pill-client';
@@ -1075,7 +1236,26 @@ function renderCalendar() {
 
             const spanHours = document.createElement('span');
             spanHours.className = 'pill-hours';
-            spanHours.textContent = formatEntryHours(entry.hours) + (entry.kms ? ` (${entry.kms} km)` : '');
+            
+            if (isInProgress) {
+                const colors = getClientColorValues(clientName);
+                const percent = split.progressPercent;
+                pill.style.setProperty('background', `linear-gradient(to right, ${colors.filled} 0%, ${colors.filled} ${percent}%, ${colors.plannedBg} ${percent}%, ${colors.plannedBg} 100%)`, 'important');
+                pill.style.setProperty('border-color', colors.filled, 'important');
+                pill.style.setProperty('border-style', 'solid', 'important');
+                const textColor = clientName.toLowerCase().includes('adrian') ? '#713f12' : '#ffffff';
+                pill.style.setProperty('color', textColor, 'important');
+                
+                spanHours.textContent = `${formatEntryHours(U)} / ${formatEntryHours(entry.hours)}${entry.kms ? ` (${entry.kms} km)` : ''}`;
+            } else {
+                spanHours.textContent = formatEntryHours(entry.hours) + (entry.kms ? ` (${entry.kms} km)` : '');
+            }
+
+            if (entry.kms) {
+                const dot = document.createElement('span');
+                dot.className = 'kms-dot calendar-kms-dot';
+                spanHours.appendChild(dot);
+            }
 
             pill.appendChild(spanClient);
             pill.appendChild(spanHours);
@@ -1130,11 +1310,11 @@ function populateClientDropdowns() {
     const activePeriod = getActivePeriod();
     const visibleClients = activePeriod.clients.filter(c => !c.hidden);
 
-    visibleClients.forEach(client => {
+        visibleClients.forEach(client => {
         const option = document.createElement('option');
         option.value = client.id;
         const stats = getClientStats(client);
-        option.textContent = `${client.name} - ${stats.remaining} hrs left`;
+        option.textContent = `${client.name} - ${formatDisplayHours(stats.remaining)} hrs left`;
         
         // Disable option if no hours remaining
         if (stats.remaining <= 0) {
@@ -1219,9 +1399,17 @@ function openClientDetailsModal(clientId) {
             const entryItem = document.createElement('div');
             entryItem.className = 'details-entry-item';
             
+            const split = getEntryHoursSplit(entry, new Date());
             const isPlanned = entry.type === 'planned';
-            const badgeClass = isPlanned ? 'entry-badge-planned' : 'entry-badge-used';
-            const badgeText = isPlanned ? `${formatEntryHours(entry.hours)} Planned` : `${formatEntryHours(entry.hours)} Used`;
+            let badgeClass = isPlanned ? 'entry-badge-planned' : 'entry-badge-used';
+            let badgeText = isPlanned ? `${formatEntryHours(entry.hours)} Planned` : `${formatEntryHours(entry.hours)} Used`;
+            let inProgressBadge = '';
+            
+            if (split.isInProgress) {
+                badgeClass = 'entry-badge-planned';
+                badgeText = `${formatEntryHours(entry.hours)} In Progress`;
+                inProgressBadge = `<span class="entry-badge-used" style="background-color: rgba(8, 145, 178, 0.1); color: #0891b2; border: 1px solid rgba(8, 145, 178, 0.2); text-transform: none; font-size: 0.625rem; font-weight: 600; padding: 0.125rem 0.375rem; border-radius: 4px;">⚡ ${split.progressPercent}% (${formatEntryHours(split.used)} used)</span>`;
+            }
             
             const kmsBadge = entry.kms ? `<span class="entry-badge-used" style="background-color: rgba(6, 182, 212, 0.1); color: #0891b2; border: 1px solid rgba(6, 182, 212, 0.2); text-transform: none; font-size: 0.625rem; font-weight: 600; padding: 0.125rem 0.375rem; border-radius: 4px;">${entry.kms} Kms</span>` : '';
             
@@ -1232,6 +1420,7 @@ function openClientDetailsModal(clientId) {
                     <div class="details-entry-header" style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
                         <span class="details-entry-date">${formatDate(entry.date)}${timeSuffix}</span>
                         <span class="${badgeClass}">${badgeText}</span>
+                        ${inProgressBadge}
                         ${kmsBadge}
                     </div>
                     ${entry.notes ? `<span class="details-entry-notes">"${entry.notes}"</span>` : ''}
@@ -1606,7 +1795,7 @@ function renderAssignedHoursManagerList() {
         row.innerHTML = `
             <div style="flex: 1; display: flex; flex-direction: column; text-align: left;">
                 <strong style="color: var(--fg-color); font-size: 0.875rem;">${client.name}</strong>
-                <span style="font-size: 0.75rem; color: var(--text-muted); margin-top: 2px;">${stats.used} hrs logged</span>
+                <span style="font-size: 0.75rem; color: var(--text-muted); margin-top: 2px;">${formatDisplayHours(stats.used)} hrs logged</span>
             </div>
             <div style="display: flex; align-items: center; gap: 0.75rem;">
                 <button class="btn-hour-adjust btn-decrease-assigned" title="Decrease Assigned Hours" style="width: 28px; height: 28px; font-size: 0.6875rem; padding: 0; display: flex; align-items: center; justify-content: center; border-radius: 6px; cursor: pointer; border: 1px solid var(--muted-color); background-color: var(--card-bg); color: var(--fg-color); transition: all 120ms ease;">
@@ -1625,7 +1814,7 @@ function renderAssignedHoursManagerList() {
         const btnDec = row.querySelector('.btn-decrease-assigned');
         btnDec.addEventListener('click', () => {
             if (client.hours <= stats.used) {
-                showToastNotification(`Cannot drop hours below currently used (${stats.used} Hrs)!`, 'error');
+                showToastNotification(`Cannot drop hours below currently used (${formatDisplayHours(stats.used)} Hrs)!`, 'error');
                 return;
             }
             if (client.hours <= 1) {
@@ -2155,7 +2344,7 @@ function setupEventListeners() {
 
             // Validation: cannot drop below used hours
             if (client.hours <= stats.used) {
-                showToastNotification(`Cannot drop hours below currently used (${stats.used} Hrs)!`, 'error');
+                showToastNotification(`Cannot drop hours below currently used (${formatDisplayHours(stats.used)} Hrs)!`, 'error');
                 return;
             }
 
@@ -2372,7 +2561,7 @@ function setupEventListeners() {
 
             // Validating remaining capacity
             if (hours > stats.remaining) {
-                showToastNotification(`Overlimit! Client only has ${stats.remaining} hours left.`, 'error');
+                showToastNotification(`Overlimit! Client only has ${formatDisplayHours(stats.remaining)} hours left.`, 'error');
                 return;
             }
 
@@ -2459,7 +2648,7 @@ function setupEventListeners() {
             const maxAllowed = stats.remaining + entry.hours;
 
             if (hours > maxAllowed) {
-                showToastNotification(`Overlimit! Maximum allowed for this entry is ${maxAllowed} Hrs.`, 'error');
+                showToastNotification(`Overlimit! Maximum allowed for this entry is ${formatDisplayHours(maxAllowed)} Hrs.`, 'error');
                 return;
             }
 
