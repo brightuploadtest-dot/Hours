@@ -1432,6 +1432,14 @@ body {
     
     .mobile-hint {
         display: block;
+        margin: 1.25rem 0 0.5rem 0;
+        padding: 0.5rem 0.75rem;
+        background-color: rgba(59, 130, 246, 0.04);
+        border-radius: var(--radius-sm);
+        border: 1px dashed rgba(59, 130, 246, 0.15);
+        color: var(--primary-hover);
+        font-size: 0.75rem;
+        letter-spacing: 0.02em;
     }
     
     .app-footer {
@@ -3544,4 +3552,11 @@ body {
     }
 }
 
-
+@media (max-width: 768px) {
+    .trend-badge {
+        display: none !important;
+    }
+    .summary-label .fa-pen-to-square {
+        display: none !important;
+    }
+}

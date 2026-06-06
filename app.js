@@ -559,7 +559,7 @@ function getClientStats(client, period) {
         planned += split.planned;
     });
     
-    const remaining = Math.max(0, client.hours - used - planned);
+    const remaining = Math.max(0, client.hours - used);
     
     return { used, planned, remaining, entries: clientEntries };
 }
@@ -590,7 +590,7 @@ function getOverallStatsForPeriod(period) {
         });
     });
 
-    const totalRemaining = Math.max(0, totalAssigned - totalUsed - totalPlanned);
+    const totalRemaining = Math.max(0, totalAssigned - totalUsed);
 
     return {
         assigned: totalAssigned,

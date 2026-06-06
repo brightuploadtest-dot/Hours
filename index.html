@@ -51,13 +51,14 @@
                     <input type="text" id="header-search-input" placeholder="Search clients..." autocomplete="off">
                 </div>
 
+                <button id="btn-trigger-sync" class="btn btn-secondary" title="Data Sync & Backups" style="display: inline-flex; align-items: center; gap: 6px;">
+                    <i class="fa-solid fa-arrows-spin" id="btn-sync-icon"></i> Sync <span id="sync-status-dot" class="sync-dot offline"></span>
+                </button>
+
                 <!-- Legacy Header Actions (Hidden for compatibility) -->
                 <div class="header-actions" style="display: none;">
                     <button id="btn-manage-hidden" class="btn btn-secondary" style="display: none;" title="Manage Hidden Columns">
                         <i class="fa-solid fa-eye-slash"></i> Hidden (<span id="hidden-count">0</span>)
-                    </button>
-                    <button id="btn-trigger-sync" class="btn btn-secondary" title="Data Sync & Backups">
-                        <i class="fa-solid fa-arrows-spin" id="btn-sync-icon"></i> Sync / Backup <span id="sync-status-dot" class="sync-dot offline"></span>
                     </button>
                     <button id="btn-add-client" class="btn btn-secondary">
                         <i class="fa-solid fa-user-plus"></i> Add Client
