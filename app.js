@@ -1002,19 +1002,19 @@ function renderSummaryBar() {
     }
 
     // Dynamic sub-label inside Remaining card to display Planned Hours
-    const remainingCard = document.querySelector('.summary-card.left');
-    if (remainingCard) {
+    const labelGroup = document.querySelector('.summary-card.left .summary-label-group') || document.querySelector('.summary-card.left');
+    if (labelGroup) {
         let plannedLabel = document.getElementById('planned-sub-label');
         if (!plannedLabel) {
             plannedLabel = document.createElement('span');
             plannedLabel.id = 'planned-sub-label';
-            plannedLabel.style.fontSize = '0.6875rem';
+            plannedLabel.style.fontSize = '0.65rem';
             plannedLabel.style.fontWeight = '600';
             plannedLabel.style.color = '#6366f1';
-            plannedLabel.style.marginTop = '4px';
+            plannedLabel.style.marginTop = '2px';
             plannedLabel.style.textTransform = 'uppercase';
-            plannedLabel.style.letterSpacing = '0.05em';
-            remainingCard.appendChild(plannedLabel);
+            plannedLabel.style.letterSpacing = '0.03em';
+            labelGroup.appendChild(plannedLabel);
         }
         plannedLabel.textContent = `${formatDisplayHours(stats.planned)} Planned`;
         plannedLabel.style.display = stats.planned > 0 ? 'inline-block' : 'none';
