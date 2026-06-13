@@ -581,7 +581,7 @@ function getOverallStats() {
 }
 
 function getOverallStatsForPeriod(period) {
-    if (!period) return { assigned: 0, used: 0, planned: 0, remaining: 0, kms: 0 };
+    if (!period) return { assigned: 0, used: 0, planned: 0, remaining: 0, unplanned: 0, kms: 0 };
     
     let totalAssigned = 0;
     let totalUsed = 0;
@@ -602,13 +602,15 @@ function getOverallStatsForPeriod(period) {
         });
     });
 
-    const totalRemaining = Math.max(0, totalAssigned - totalUsed - totalPlanned);
+    const totalRemaining = Math.max(0, totalAssigned - totalUsed);
+    const totalUnplanned = Math.max(0, totalRemaining - totalPlanned);
 
     return {
         assigned: totalAssigned,
         used: totalUsed,
         planned: totalPlanned,
         remaining: totalRemaining,
+        unplanned: totalUnplanned,
         kms: totalKms
     };
 }
@@ -929,6 +931,15 @@ function renderSummaryBar() {
     animateNumberUpdate('total-remaining', stats.remaining);
     animateNumberUpdate('total-kms', stats.kms, true);
 
+    const totalRemainingSub = document.getElementById('total-remaining-sub');
+    if (totalRemainingSub) {
+        if (stats.planned > 0) {
+            totalRemainingSub.innerHTML = `<span style="color: #6366f1; font-weight: 600;">${formatDisplayHours(stats.planned)} planned</span> &middot; ${formatDisplayHours(stats.unplanned)} unplanned`;
+        } else {
+            totalRemainingSub.textContent = '';
+        }
+    }
+
     // Calculate trend compared to the previous period
     const sortedPeriods = [...state.periods].sort((a, b) => new Date(a.start) - new Date(b.start));
     const activeIdx = sortedPeriods.findIndex(p => p.id === state.activePeriodId);
@@ -1129,14 +1140,17 @@ function renderClientsGrid() {
         const hoursSummary = document.createElement('div');
         hoursSummary.className = 'card-hours-summary';
         
-        let subText = `${formatDisplayHours(stats.used)} used`;
+        const totalRemaining = Math.max(0, client.hours - stats.used);
+        const unplanned = Math.max(0, totalRemaining - stats.planned);
+        
+        let subText = `<span style="white-space: nowrap;">${formatDisplayHours(stats.used)} used</span>`;
         if (stats.planned > 0) {
-            subText += ` <span style="color: #6366f1; font-weight: 600; font-size: 0.75rem;">(+${formatDisplayHours(stats.planned)}p)</span>`;
+            subText += ` &middot; <span style="color: #6366f1; font-weight: 600; white-space: nowrap;">${formatDisplayHours(stats.planned)} planned</span> &middot; <span style="color: var(--text-muted); font-weight: 500; white-space: nowrap;">${formatDisplayHours(unplanned)} unplanned</span>`;
         }
         
         hoursSummary.innerHTML = `
             <div class="hours-summary-left">
-                <span class="hours-top">${formatDisplayHours(stats.remaining)} left</span>
+                <span class="hours-top">${formatDisplayHours(totalRemaining)} left</span>
                 <span class="hours-sub">${subText}</span>
             </div>
             <div class="hours-adjuster-quick">
@@ -1631,9 +1645,11 @@ function legacyOpenClientDetailsModal(clientId) {
 
     const elSubtitle = document.getElementById('details-client-subtitle');
     if (elSubtitle) {
-        let subtitleText = `${formatDisplayHours(stats.remaining)} Hrs Remaining`;
+        const totalRemaining = Math.max(0, client.hours - stats.used);
+        const unplanned = Math.max(0, totalRemaining - stats.planned);
+        let subtitleText = `${formatDisplayHours(totalRemaining)} Hrs Remaining`;
         if (stats.planned > 0) {
-            subtitleText += ` (+${formatDisplayHours(stats.planned)} Planned)`;
+            subtitleText += ` (${formatDisplayHours(stats.planned)}\u00A0Planned, ${formatDisplayHours(unplanned)}\u00A0Unplanned)`;
         }
         elSubtitle.textContent = subtitleText;
     }
@@ -3933,7 +3949,18 @@ function renderProfilePage() {
     if (usedHours) usedHours.textContent = `${formatDisplayHours(stats.used)}h`;
 
     const remainingHours = document.getElementById('profile-remaining-hours');
-    if (remainingHours) remainingHours.textContent = `${formatDisplayHours(stats.remaining)}h`;
+    const totalRemaining = Math.max(0, client.hours - stats.used);
+    const unplanned = Math.max(0, totalRemaining - stats.planned);
+    if (remainingHours) remainingHours.textContent = `${formatDisplayHours(totalRemaining)}h`;
+
+    const remainingSubtext = document.getElementById('profile-remaining-subtext');
+    if (remainingSubtext) {
+        if (stats.planned > 0) {
+            remainingSubtext.innerHTML = `<span style="color: #6366f1; font-weight: 600; white-space: nowrap;">${formatDisplayHours(stats.planned)}h planned</span> &middot; <span style="white-space: nowrap;">${formatDisplayHours(unplanned)}h unplanned</span>`;
+        } else {
+            remainingSubtext.textContent = 'available';
+        }
+    }
 
     const pct = client.hours > 0 ? Math.min(100, Math.round((stats.used / client.hours) * 100)) : 0;
     const progressPercent = document.getElementById('profile-progress-percent');
