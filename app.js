@@ -1589,13 +1589,14 @@ function populateClientDropdowns() {
     }
 }
 
-// Prefill entry date selector to May 21, 2026 (local date context)
+// Prefill entry date selector to current date (local date context)
 function prefillDefaultDate() {
     const dateInput = document.getElementById('entry-date');
     if (dateInput) {
         // Find if today falls inside active period range to set it logically
         const activePeriod = getActivePeriod();
-        const todayStr = '2026-05-21';
+        const today = new Date();
+        const todayStr = `${today.getFullYear()}-${(today.getMonth() + 1).toString().padStart(2, '0')}-${today.getDate().toString().padStart(2, '0')}`;
         if (todayStr >= activePeriod.start && todayStr <= activePeriod.end) {
             dateInput.value = todayStr;
         } else {
@@ -1847,7 +1848,8 @@ function quickAddHour(clientId) {
     }
 
     // Prefill date context based on period start/today
-    const todayStr = '2026-05-21';
+    const today = new Date();
+    const todayStr = `${today.getFullYear()}-${(today.getMonth() + 1).toString().padStart(2, '0')}-${today.getDate().toString().padStart(2, '0')}`;
     let targetDate = activePeriod.start;
     if (todayStr >= activePeriod.start && todayStr <= activePeriod.end) {
         targetDate = todayStr;
