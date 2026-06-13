@@ -518,22 +518,12 @@ function getEntryHoursSplit(entry, now) {
     } else if (parsedNow >= endDate) {
         return { used: entry.hours, planned: 0, isInProgress: false, progressPercent: 100 };
     } else {
-        // In Progress!
-        const totalMs = endDate - startDate;
-        if (totalMs <= 0) {
-            return { used: 0, planned: entry.hours, isInProgress: false, progressPercent: 0 };
-        }
-        
-        const elapsedMs = parsedNow - startDate;
-        const fraction = Math.min(1, Math.max(0, elapsedMs / totalMs));
-        const usedHours = entry.hours * fraction;
-        const plannedHours = entry.hours - usedHours;
-        
+        // In Progress! (Fully used immediately once it starts)
         return { 
-            used: usedHours, 
-            planned: plannedHours, 
+            used: entry.hours, 
+            planned: 0, 
             isInProgress: true, 
-            progressPercent: parseFloat((fraction * 100).toFixed(1)) 
+            progressPercent: 100 
         };
     }
 }
