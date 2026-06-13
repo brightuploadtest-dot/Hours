@@ -109,6 +109,7 @@
                     <span class="trend-badge" id="trend-remaining"></span>
                 </div>
                 <span class="summary-num" id="total-remaining">0</span>
+                <span class="summary-subtext" id="total-remaining-sub" style="font-size: 0.72rem; color: var(--text-muted); font-weight: 500; white-space: nowrap;"></span>
             </div>
             <div class="summary-card kms">
                 <div class="summary-card-header">
@@ -249,7 +250,7 @@
                     <div class="profile-metric-col">
                         <span class="profile-metric-label">Remaining</span>
                         <div class="profile-metric-value green" id="profile-remaining-hours">5.5h</div>
-                        <span class="profile-metric-subtext">available</span>
+                        <span class="profile-metric-subtext" id="profile-remaining-subtext">available</span>
                     </div>
                 </div>
                 <div class="profile-progress-bar-wrapper">
@@ -603,6 +604,10 @@
                     </div>
                 </div>
                 <div class="form-group">
+                    <label for="entry-location">Location (optional)</label>
+                    <input type="text" id="entry-location" placeholder="e.g. Office, Home, Community" autocomplete="off" style="font-size: 0.875rem; padding: 0.5rem; border: 1px solid var(--muted-color); border-radius: 6px; box-sizing: border-box; width: 100%;">
+                </div>
+                <div class="form-group">
                     <label for="entry-kms">Distance Traveled (Kms - optional)</label>
                     <input type="number" id="entry-kms" step="0.1" min="0" placeholder="e.g. 12.5" autocomplete="off" style="font-size: 0.875rem; padding: 0.5rem; border: 1px solid var(--muted-color); border-radius: 6px; box-sizing: border-box; width: 100%;">
                 </div>
@@ -657,6 +662,10 @@
                         <label for="edit-entry-time-to">Time To</label>
                         <input type="time" id="edit-entry-time-to" required>
                     </div>
+                </div>
+                <div class="form-group">
+                    <label for="edit-entry-location">Location (optional)</label>
+                    <input type="text" id="edit-entry-location" placeholder="e.g. Office, Home, Community" autocomplete="off" style="font-size: 0.875rem; padding: 0.5rem; border: 1px solid var(--muted-color); border-radius: 6px; box-sizing: border-box; width: 100%;">
                 </div>
                 <div class="form-group">
                     <label for="edit-entry-kms">Distance Traveled (Kms - optional)</label>

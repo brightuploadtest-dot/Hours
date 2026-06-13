@@ -1498,8 +1498,9 @@ function renderCalendar() {
             pill.setAttribute('data-entry-id', entry.id);
             
             const kmsSuffix = entry.kms ? `, ${entry.kms} Kms` : '';
+            const locSuffix = entry.location ? ` @ ${entry.location}` : '';
             const inProgressTitle = isInProgress ? ` (In Progress: ${split.progressPercent}% completed)` : '';
-            pill.setAttribute('title', `${clientName}: ${formatEntryHours(entry.hours)} ${entry.type === 'planned' ? 'Planned' : 'Used'}${inProgressTitle}${kmsSuffix}${entry.notes ? ' - "' + entry.notes + '"' : ''}`);
+            pill.setAttribute('title', `${clientName}: ${formatEntryHours(entry.hours)} ${entry.type === 'planned' ? 'Planned' : 'Used'}${inProgressTitle}${kmsSuffix}${locSuffix}${entry.notes ? ' - "' + entry.notes + '"' : ''}`);
 
             const spanClient = document.createElement('span');
             spanClient.className = 'pill-client';
@@ -1696,6 +1697,7 @@ function legacyOpenClientDetailsModal(clientId) {
             }
             
             const kmsBadge = entry.kms ? `<span class="entry-badge-used" style="background-color: rgba(6, 182, 212, 0.1); color: #0891b2; border: 1px solid rgba(6, 182, 212, 0.2); text-transform: none; font-size: 0.625rem; font-weight: 600; padding: 0.125rem 0.375rem; border-radius: 4px;">${entry.kms} Kms</span>` : '';
+            const locationBadge = entry.location ? `<span class="entry-badge-used" style="background-color: rgba(99, 102, 241, 0.1); color: #4f46e5; border: 1px solid rgba(99, 102, 241, 0.2); text-transform: none; font-size: 0.625rem; font-weight: 600; padding: 0.125rem 0.375rem; border-radius: 4px;"><i class="fa-solid fa-location-dot" style="margin-right: 3px;"></i>${entry.location}</span>` : '';
             
             const rangeText = formatTimeRange(entry.timeFrom, entry.timeTo) || (entry.time ? formatTime12h(entry.time) : '');
             const timeSuffix = rangeText ? ` @ ${rangeText}` : '';
@@ -1706,6 +1708,7 @@ function legacyOpenClientDetailsModal(clientId) {
                         <span class="${badgeClass}">${badgeText}</span>
                         ${inProgressBadge}
                         ${kmsBadge}
+                        ${locationBadge}
                     </div>
                     ${entry.notes ? `<span class="details-entry-notes">"${entry.notes}"</span>` : ''}
                 </div>
@@ -1817,6 +1820,9 @@ function openEditEntryModal(entryId) {
 
     const elKms = document.getElementById('edit-entry-kms');
     if (elKms) elKms.value = entry.kms || '';
+
+    const elLocation = document.getElementById('edit-entry-location');
+    if (elLocation) elLocation.value = entry.location || '';
 
     // Select correct time status radio pill
     const entryType = entry.type || 'actual';
@@ -2853,6 +2859,9 @@ function setupEventListeners() {
             const elKms = document.getElementById('entry-kms');
             const kms = elKms ? parseFloat(elKms.value) || 0 : 0;
 
+            const elLocation = document.getElementById('entry-location');
+            const location = elLocation ? elLocation.value.trim() : '';
+
             const newEntry = {
                 id: 'e_' + Date.now(),
                 clientId: client.id,
@@ -2862,7 +2871,8 @@ function setupEventListeners() {
                 type: entryType,
                 timeFrom: timeFrom,
                 timeTo: timeTo,
-                kms: kms
+                kms: kms,
+                location: location
             };
 
             if (!targetPeriod.entries) targetPeriod.entries = [];
@@ -2945,6 +2955,9 @@ function setupEventListeners() {
             const elKms = document.getElementById('edit-entry-kms');
             const kms = elKms ? parseFloat(elKms.value) || 0 : 0;
 
+            const elLocation = document.getElementById('edit-entry-location');
+            const location = elLocation ? elLocation.value.trim() : '';
+
             // Update details
             entry.date = date;
             entry.hours = hours;
@@ -2953,6 +2966,7 @@ function setupEventListeners() {
             entry.timeFrom = timeFrom;
             entry.timeTo = timeTo;
             entry.kms = kms;
+            entry.location = location;
             if ('time' in entry) {
                 delete entry.time;
             }
@@ -4081,6 +4095,9 @@ function renderProfileSessions(client, stats) {
                 const editKmsInput = document.getElementById('edit-entry-kms');
                 if (editKmsInput) editKmsInput.value = entry.kms || '';
 
+                const editLocationInput = document.getElementById('edit-entry-location');
+                if (editLocationInput) editLocationInput.value = entry.location || '';
+
                 const editNotesInput = document.getElementById('edit-entry-notes');
                 if (editNotesInput) editNotesInput.value = entry.notes || '';
 
@@ -4101,6 +4118,7 @@ function renderProfileSessions(client, stats) {
 
         const badgeClass = entry.type === 'planned' ? 'badge-grey' : 'badge-blue';
         const badgeText = entry.type === 'planned' ? 'Future Plan' : 'Home Visit';
+        const locationBadge = entry.location ? `<span class="badge badge-grey" style="background-color: rgba(99, 102, 241, 0.08); color: #4f46e5; border: 1px solid rgba(99, 102, 241, 0.15);"><i class="fa-solid fa-location-dot" style="margin-right: 3px;"></i>${entry.location}</span>` : '';
 
         row.innerHTML = `
             <div class="session-row-left">
@@ -4111,6 +4129,7 @@ function renderProfileSessions(client, stats) {
                     <div class="session-date-row">
                         <span class="session-date-text">${dateFormatted}</span>
                         <span class="badge ${badgeClass}">${badgeText}</span>
+                        ${locationBadge}
                     </div>
                     <span class="session-desc">${entry.notes || 'No session details provided.'}</span>
                 </div>
