@@ -4,10 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Client Hours Tracker</title>
-    <!-- Google Fonts: Inter -->
+    <!-- Google Fonts: Geist & Geist Mono -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&family=Geist+Mono:wght@100..900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css">
     <link rel="stylesheet" href="style.css">
     <!-- PWA Mobile App Manifest -->
@@ -23,73 +23,82 @@
     <div class="app-container">
         <!-- Header -->
         <!-- Header -->
-        <header class="app-header">
-            <div class="header-logo" id="nav-logo-btn" style="cursor: pointer;">
-                <div class="logo-icon"><i class="fa-solid fa-clock-rotate-left"></i></div>
-                <h1>CareTrack</h1>
+        <header class="app-header" style="flex-direction: column; align-items: stretch; gap: 0; padding: 1.25rem 2rem;">
+            <!-- Top Row -->
+            <div style="display: flex; justify-content: space-between; align-items: center; width: 100%; padding-bottom: 0.25rem; border-bottom: none;">
+                
+                <!-- Left Wrapper -->
+                <div style="display: flex; align-items: center; gap: 1.5rem;">
+                    <div class="header-logo" id="nav-logo-btn" style="cursor: pointer;">
+                        <div class="logo-icon"><i class="fa-solid fa-arrows-rotate" style="font-size: 1.1rem; color: #ffffff;"></i></div>
+                        <h1 style="font-size: 1.125rem; font-weight: 700; margin-left: 4px;">CareTrack</h1>
+                    </div>
+                    
+                    <!-- Navigation Tabs -->
+                    <nav class="app-nav">
+                        <button class="nav-item active" id="nav-btn-dashboard" data-tab="dashboard">
+                            <i class="fa-solid fa-grip"></i> <span>Dashboard</span>
+                        </button>
+                        <button class="nav-item" id="nav-btn-profile" data-tab="profile">
+                            <i class="fa-solid fa-user"></i> <span>Client Profile</span>
+                        </button>
+                        <button class="nav-item" id="nav-btn-log" data-tab="log">
+                            <i class="fa-solid fa-clock"></i> <span>Log Session</span>
+                        </button>
+                        <button class="nav-item" id="nav-btn-progress" data-tab="progress">
+                            <i class="fa-solid fa-chart-line"></i> <span>Progress</span>
+                        </button>
+                    </nav>
+                </div>
+
+                <!-- Right Wrapper -->
+                <div class="header-right-controls" style="gap: 0.75rem;">
+                    <div class="search-bar-wrapper">
+                        <i class="fa-solid fa-magnifying-glass search-icon"></i>
+                        <input type="text" id="header-search-input" placeholder="Search clients..." autocomplete="off">
+                    </div>
+
+                    <button id="btn-trigger-sync" class="btn btn-secondary" title="Data Sync & Backups" style="display: inline-flex; align-items: center; gap: 6px; font-size: 0.75rem; padding: 0.35rem 0.75rem;">
+                        <i class="fa-solid fa-arrows-rotate" id="btn-sync-icon" style="color: #3b82f6;"></i> Sync <span id="sync-status-dot" class="sync-dot offline"></span>
+                    </button>
+
+                    <!-- Legacy Header Actions (Hidden for compatibility) -->
+                    <div class="header-actions" style="display: none;">
+                        <button id="btn-manage-hidden" class="btn btn-secondary" style="display: none;" title="Manage Hidden Columns">
+                            <i class="fa-solid fa-eye-slash"></i> Hidden (<span id="hidden-count">0</span>)
+                        </button>
+                        <button id="btn-add-client" class="btn btn-secondary">
+                            <i class="fa-solid fa-user-plus"></i> Add Client
+                        </button>
+                        <button id="btn-add-entry" class="btn btn-primary">
+                            <i class="fa-solid fa-plus"></i> Add Entry
+                        </button>
+                    </div>
+                </div>
             </div>
-            
-            <!-- Navigation Tabs -->
-            <nav class="app-nav">
-                <button class="nav-item active" id="nav-btn-dashboard" data-tab="dashboard">
-                    <i class="fa-solid fa-grip"></i> <span>Dashboard</span>
-                </button>
-                <button class="nav-item" id="nav-btn-profile" data-tab="profile">
-                    <i class="fa-solid fa-user"></i> <span>Client Profile</span>
-                </button>
-                <button class="nav-item" id="nav-btn-log" data-tab="log">
-                    <i class="fa-solid fa-clock"></i> <span>Log Session</span>
-                </button>
-                <button class="nav-item" id="nav-btn-progress" data-tab="progress">
-                    <i class="fa-solid fa-chart-line"></i> <span>Progress</span>
-                </button>
-            </nav>
 
-            <div class="header-right-controls">
-                <div class="search-bar-wrapper">
-                    <i class="fa-solid fa-magnifying-glass search-icon"></i>
-                    <input type="text" id="header-search-input" placeholder="Search clients..." autocomplete="off">
+            <!-- Bottom Row: Period Selector -->
+            <div class="period-selector-bar" style="background: none !important; border: none !important; box-shadow: none !important; padding: 0.75rem 0 0 0; margin: 0; min-height: auto;">
+                <div class="period-info" style="font-size: 0.75rem;">
+                    <i class="fa-regular fa-calendar" style="color: #3b82f6; font-size: 0.8rem;"></i>
+                    <span class="period-label">Period:</span>
+                    <select id="period-select-dropdown" class="period-dropdown-select" title="Switch between active tracking periods">
+                        <!-- Populated dynamically via JS -->
+                    </select>
                 </div>
-
-                <button id="btn-trigger-sync" class="btn btn-secondary" title="Data Sync & Backups" style="display: inline-flex; align-items: center; gap: 6px;">
-                    <i class="fa-solid fa-arrows-spin" id="btn-sync-icon"></i> Sync <span id="sync-status-dot" class="sync-dot offline"></span>
+                <button id="btn-change-period" class="btn-period-edit" title="Create or Edit Periods">
+                    <i class="fa-regular fa-calendar" style="color: #3b82f6; margin-right: 4px;"></i> New / Edit Period
                 </button>
-
-                <!-- Legacy Header Actions (Hidden for compatibility) -->
-                <div class="header-actions" style="display: none;">
-                    <button id="btn-manage-hidden" class="btn btn-secondary" style="display: none;" title="Manage Hidden Columns">
-                        <i class="fa-solid fa-eye-slash"></i> Hidden (<span id="hidden-count">0</span>)
-                    </button>
-                    <button id="btn-add-client" class="btn btn-secondary">
-                        <i class="fa-solid fa-user-plus"></i> Add Client
-                    </button>
-                    <button id="btn-add-entry" class="btn btn-primary">
-                        <i class="fa-solid fa-plus"></i> Add Entry
-                    </button>
-                </div>
             </div>
         </header>
 
         <div id="view-dashboard" class="fade-in">
-            <!-- Sub-Header / Billing Period Selector -->
-        <div class="period-selector-bar">
-            <div class="period-info">
-                <i class="fa-solid fa-calendar-days" style="color: var(--primary-hover); font-size: 1rem;"></i>
-                <span class="period-label">Period:</span>
-                <select id="period-select-dropdown" class="period-dropdown-select" title="Switch between active tracking periods">
-                    <!-- Populated dynamically via JS -->
-                </select>
-            </div>
-            <button id="btn-change-period" class="btn-period-edit" title="Create or Edit Periods">
-                <i class="fa-solid fa-calendar-plus"></i> New / Edit Period
-            </button>
-        </div>
 
         <!-- Summary Bar -->
         <section class="summary-bar" id="summary-bar">
             <div class="summary-card" id="card-assigned-trigger" style="cursor: pointer; transition: transform 120ms ease, box-shadow 120ms ease;" title="Manage assigned hours for all active clients">
                 <div class="summary-card-header">
-                    <span class="summary-label">Assigned <i class="fa-solid fa-pen-to-square" style="font-size: 0.75rem; opacity: 0.7; margin-left: 2px;"></i></span>
+                    <span class="summary-label">Assigned <i class="fa-solid fa-sliders" style="font-size: 0.75rem; opacity: 0.7; margin-left: 4px;"></i></span>
                     <span class="trend-badge" id="trend-assigned"></span>
                 </div>
                 <span class="summary-num" id="total-assigned">0</span>
@@ -103,13 +112,13 @@
             </div>
             <div class="summary-card left">
                 <div class="summary-card-header">
-                    <div class="summary-label-group" style="display: flex; flex-direction: column; align-items: flex-start; gap: 2px;">
+                    <div class="summary-label-group">
                         <span class="summary-label">Remaining</span>
                     </div>
                     <span class="trend-badge" id="trend-remaining"></span>
                 </div>
                 <span class="summary-num" id="total-remaining">0</span>
-                <span class="summary-subtext" id="total-remaining-sub" style="font-size: 0.72rem; color: var(--text-muted); font-weight: 500; white-space: nowrap;"></span>
+                <span id="total-remaining-sub" style="display: none;"></span>
             </div>
             <div class="summary-card kms">
                 <div class="summary-card-header">
@@ -133,27 +142,30 @@
             <!-- Calendar Section -->
             <section class="calendar-section" id="calendar-section">
                 <div class="calendar-card">
-                    <div class="calendar-header-bar">
-                        <div class="calendar-header-title" style="display: flex; align-items: center; gap: 0.75rem;">
-                            <i class="fa-solid fa-calendar-days"></i>
-                            <div>
-                                <h3 style="margin: 0; font-size: 1.1rem; font-weight: 700; color: var(--fg-color);">Schedule Calendar</h3>
-                                <div class="calendar-navigation-controls" style="display: flex; align-items: center; gap: 0.5rem; margin-top: 4px;">
-                                    <button id="btn-calendar-prev-month" class="btn-calendar-nav" title="Previous Month" style="background: var(--bg-hover); border: 1px solid var(--border-color); color: var(--fg-color); border-radius: 4px; padding: 2px 6px; cursor: pointer; font-size: 0.75rem; display: inline-flex; align-items: center; justify-content: center; height: 24px; width: 24px;">
-                                        <i class="fa-solid fa-chevron-left"></i>
-                                    </button>
-                                    <span id="calendar-month-year-label" style="font-weight: 700; font-size: 0.85rem; color: var(--text-color); min-width: 90px; text-align: center; display: inline-block;">May 2026</span>
-                                    <button id="btn-calendar-next-month" class="btn-calendar-nav" title="Next Month" style="background: var(--bg-hover); border: 1px solid var(--border-color); color: var(--fg-color); border-radius: 4px; padding: 2px 6px; cursor: pointer; font-size: 0.75rem; display: inline-flex; align-items: center; justify-content: center; height: 24px; width: 24px;">
-                                        <i class="fa-solid fa-chevron-right"></i>
-                                    </button>
-                                </div>
+                    <div class="calendar-header-bar" style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1.25rem; padding-bottom: 1.25rem; border-bottom: 1px solid var(--muted-color);">
+                        <!-- Left Side: Title and Legend below it -->
+                        <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+                            <h3 style="margin: 0; font-size: 0.95rem; font-weight: 700; color: var(--fg-color); white-space: nowrap;">Schedule Calendar</h3>
+                            <div class="calendar-legend" style="display: flex; gap: 1rem; font-size: 0.8125rem; font-weight: 500; color: var(--text-muted);">
+                                <span class="legend-item" style="display: flex; align-items: center; gap: 6px;"><span class="legend-dot actual" style="width: 8px; height: 8px; border-radius: 50%; display: inline-block; background-color: var(--primary-color);"></span> Logged / Used</span>
+                                <span class="legend-item" style="display: flex; align-items: center; gap: 6px;"><span class="legend-dot planned" style="width: 8px; height: 8px; border-radius: 50%; display: inline-block; background-color: rgba(99, 102, 241, 0.45); border: 1px dashed rgba(99, 102, 241, 0.75);"></span> Future Plan</span>
                             </div>
                         </div>
-                        <div class="calendar-legend-container" style="display: flex; align-items: center; gap: 1.5rem; flex-wrap: wrap;">
-                            <div class="calendar-legend">
-                                <span class="legend-item"><span class="legend-dot actual"></span> Logged / Used</span>
-                                <span class="legend-item"><span class="legend-dot planned"></span> Future Plan</span>
+                        
+                        <!-- Right Side: Month Navigation and Period Selector below it -->
+                        <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 0.5rem;">
+                            <!-- Month Navigation -->
+                            <div class="calendar-navigation-controls" style="display: flex; align-items: center; gap: 0.4rem;">
+                                <button id="btn-calendar-prev-month" class="btn-calendar-nav" title="Previous Month" style="background: var(--bg-hover); border: 1px solid var(--border-color); color: var(--text-muted); border-radius: 4px; padding: 2px 6px; cursor: pointer; font-size: 0.75rem; display: inline-flex; align-items: center; justify-content: center; height: 24px; width: 24px;">
+                                    <i class="fa-solid fa-chevron-left"></i>
+                                </button>
+                                <span id="calendar-month-year-label" style="font-weight: 700; font-size: 0.8rem; color: var(--text-muted); min-width: 80px; text-align: center; display: inline-block;">May 2026</span>
+                                <button id="btn-calendar-next-month" class="btn-calendar-nav" title="Next Month" style="background: var(--bg-hover); border: 1px solid var(--border-color); color: var(--text-muted); border-radius: 4px; padding: 2px 6px; cursor: pointer; font-size: 0.75rem; display: inline-flex; align-items: center; justify-content: center; height: 24px; width: 24px;">
+                                    <i class="fa-solid fa-chevron-right"></i>
+                                </button>
                             </div>
+                            
+                            <!-- Period Selector -->
                             <div class="calendar-period-selector" style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
                                 <span class="period-label" style="font-size: 0.85rem; font-weight: 600; color: var(--text-muted); white-space: nowrap;">Period:</span>
                                 <select id="calendar-period-select" class="period-dropdown-select" title="Switch between active tracking periods on the calendar" style="padding: 4px 28px 4px 12px; font-size: 0.85rem; height: auto; margin: 0;">
@@ -200,16 +212,6 @@
 
         <!-- Client Profile View -->
         <div id="view-profile" class="hidden fade-in">
-            <!-- Client selector to switch profiles when on this page -->
-            <div class="profile-header-selector-bar">
-                <div class="profile-select-container">
-                    <label for="profile-client-select-dropdown">Select Profile:</label>
-                    <select id="profile-client-select-dropdown" class="period-dropdown-select" title="Switch between client profiles">
-                        <!-- Populated dynamically -->
-                    </select>
-                </div>
-            </div>
-
             <!-- Profile Banner & Info Card -->
             <div class="profile-hero-card">
                 <div class="profile-banner"></div>
@@ -225,6 +227,12 @@
                         </div>
                     </div>
                     <div class="profile-hero-actions">
+                        <div class="profile-select-container">
+                            <label for="profile-client-select-dropdown">Select Profile:</label>
+                            <select id="profile-client-select-dropdown" class="period-dropdown-select" title="Switch between client profiles">
+                                <!-- Populated dynamically -->
+                            </select>
+                        </div>
                         <button class="btn btn-primary" id="btn-profile-edit" title="Edit client profile details">
                             <i class="fa-solid fa-pen-to-square"></i> Edit Profile
                         </button>
@@ -238,13 +246,13 @@
                     <div class="profile-metric-col">
                         <span class="profile-metric-label">Assigned Hours</span>
                         <div class="profile-metric-value" id="profile-assigned-hours">20h</div>
-                        <span class="profile-metric-subtext">per month</span>
+                        <span class="profile-metric-subtext">per period</span>
                     </div>
                     <div class="profile-metric-divider"></div>
                     <div class="profile-metric-col">
                         <span class="profile-metric-label">Hours Used</span>
                         <div class="profile-metric-value blue" id="profile-used-hours">14.5h</div>
-                        <span class="profile-metric-subtext">this month</span>
+                        <span class="profile-metric-subtext">this period</span>
                     </div>
                     <div class="profile-metric-divider"></div>
                     <div class="profile-metric-col">
@@ -255,7 +263,7 @@
                 </div>
                 <div class="profile-progress-bar-wrapper">
                     <div class="profile-progress-bar-label-row">
-                        <span>Monthly Progress</span>
+                        <span>Period Progress</span>
                         <span id="profile-progress-percent">73%</span>
                     </div>
                     <div class="profile-progress-track">

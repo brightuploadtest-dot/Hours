@@ -36,6 +36,7 @@ let activeDetailsClientId = null;
 
 // Calendar month view date controller
 let calendarViewDate = null;
+let calendarTransitionDirection = null;
 
 // Sync server connection tracking variables
 let isServerOnline = false;
@@ -61,6 +62,26 @@ function getActivePeriod() {
     return period;
 }
 
+function reconcileEntryHours(entry) {
+    if (entry.timeFrom && entry.timeTo) {
+        const [fromH, fromM] = entry.timeFrom.split(':').map(Number);
+        const [toH, toM] = entry.timeTo.split(':').map(Number);
+        if (!isNaN(fromH) && !isNaN(fromM) && !isNaN(toH) && !isNaN(toM)) {
+            let diffMins = (toH * 60 + toM) - (fromH * 60 + fromM);
+            if (diffMins < 0) {
+                // Handle overnight shift crossing midnight
+                diffMins += 24 * 60;
+            }
+            const correctHours = parseFloat((diffMins / 60).toFixed(2));
+            if (entry.hours !== correctHours) {
+                entry.hours = correctHours;
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
 function initApp() {
     const savedPeriods = localStorage.getItem('hour_tracker_periods_v2');
     const savedActivePeriodId = localStorage.getItem('hour_tracker_active_period_id_v2');
@@ -81,7 +102,8 @@ function initApp() {
                 throw new Error("Invalid structure loaded from localStorage");
             }
             
-            // Repair any missing names just in case
+            // Repair any missing names and reconcile entry hours
+            let needsSave = false;
             state.periods.forEach(p => {
                 if (p.clients && Array.isArray(p.clients)) {
                     p.clients.forEach(c => {
@@ -95,7 +117,17 @@ function initApp() {
                         if (c.name === 'Nadia Gray') c.name = 'NG';
                     });
                 }
+                if (p.entries && Array.isArray(p.entries)) {
+                    p.entries.forEach(e => {
+                        if (reconcileEntryHours(e)) {
+                            needsSave = true;
+                        }
+                    });
+                }
             });
+            if (needsSave) {
+                saveState(true);
+            }
 
             // Clear mock / default client info and goals/notes once for the upgrade to v39
             if (localStorage.getItem('database_cleaned_v39') !== 'true') {
@@ -135,6 +167,9 @@ function initApp() {
                 if (!c.name && c.initials) c.name = c.initials;
             });
 
+            // Reconcile hours for migrated entries
+            oldEntries.forEach(reconcileEntryHours);
+
             state.periods = [
                 {
                     id: `${oldStart}_${oldEnd}`,
@@ -172,7 +207,10 @@ function initApp() {
     setInterval(() => {
         render();
         if (activeDetailsClientId) {
-            openClientDetailsModal(activeDetailsClientId);
+            const modalDetails = document.getElementById('modal-client-details');
+            if (modalDetails && modalDetails.classList.contains('active')) {
+                legacyOpenClientDetailsModal(activeDetailsClientId);
+            }
         }
     }, 30000);
 }
@@ -327,6 +365,13 @@ function syncWithServer(triggerReason = '') {
                     // Update state and active period pointer securely
                     state.periods = mergedPeriods;
                     
+                    // Reconcile entry hours for all entries
+                    state.periods.forEach(p => {
+                        if (p.entries && Array.isArray(p.entries)) {
+                            p.entries.forEach(reconcileEntryHours);
+                        }
+                    });
+
                     // If current active period doesn't exist in merged list, default to server active period or first available
                     if (!state.periods.some(p => p.id === state.activePeriodId)) {
                         state.activePeriodId = data.activePeriodId || state.periods[0].id;
@@ -532,18 +577,18 @@ function getEntryHoursSplit(entry, now) {
 function getClientColorValues(clientName) {
     const name = (clientName || '').toLowerCase();
     if (name.includes('ryan')) {
-        return { filled: '#ef4444', plannedBg: 'rgba(239, 68, 68, 0.08)', plannedBorder: 'rgba(239, 68, 68, 0.5)' };
+        return { filled: '#ef4444', plannedBg: 'rgba(239, 68, 68, 0.22)', plannedBorder: 'rgba(239, 68, 68, 0.75)', plannedText: '#b91c1c' };
     } else if (name.includes('jamie')) {
-        return { filled: '#a855f7', plannedBg: 'rgba(168, 85, 247, 0.08)', plannedBorder: 'rgba(168, 85, 247, 0.5)' };
+        return { filled: '#a855f7', plannedBg: 'rgba(168, 85, 247, 0.22)', plannedBorder: 'rgba(168, 85, 247, 0.75)', plannedText: '#7e22ce' };
     } else if (name.includes('tyler')) {
-        return { filled: '#f97316', plannedBg: 'rgba(249, 115, 22, 0.08)', plannedBorder: 'rgba(249, 115, 22, 0.5)' };
+        return { filled: '#f97316', plannedBg: 'rgba(249, 115, 22, 0.22)', plannedBorder: 'rgba(249, 115, 22, 0.75)', plannedText: '#c2410c' };
     } else if (name.includes('adrian')) {
-        return { filled: '#facc15', plannedBg: 'rgba(234, 179, 8, 0.08)', plannedBorder: 'rgba(234, 179, 8, 0.5)' };
+        return { filled: '#facc15', plannedBg: 'rgba(234, 179, 8, 0.22)', plannedBorder: 'rgba(234, 179, 8, 0.75)', plannedText: '#713f12' }; // Dark brown/yellow text for high readability
     } else if (name.includes('noah')) {
-        return { filled: '#06b6d4', plannedBg: 'rgba(6, 182, 212, 0.08)', plannedBorder: 'rgba(6, 182, 212, 0.5)' };
+        return { filled: '#06b6d4', plannedBg: 'rgba(6, 182, 212, 0.22)', plannedBorder: 'rgba(6, 182, 212, 0.75)', plannedText: '#0369a1' };
     }
     // Default fallback color (Gold / Amber theme)
-    return { filled: '#fbbf24', plannedBg: 'rgba(251, 191, 36, 0.08)', plannedBorder: 'rgba(251, 191, 36, 0.5)' };
+    return { filled: '#fbbf24', plannedBg: 'rgba(251, 191, 36, 0.22)', plannedBorder: 'rgba(251, 191, 36, 0.75)', plannedText: '#312e81' };
 }
 
 function getClientStats(client, period) {
@@ -740,6 +785,32 @@ function getClientColorClass(clientName) {
     return '';
 }
 
+// Helper to dynamically return inner HTML of a segment block based on total hours assigned to keep it legible when scaling down
+function getSegmentHTML(totalSegments, entry, entryHours, textColorStyle = '', containerMaxHeight = 300) {
+    const dateStr = formatShortDate(entry.date);
+    const hourStr = formatEntryHours(entryHours);
+    
+    // Estimate the individual segment height in pixels (container max height is dynamic)
+    const segmentHeight = containerMaxHeight / totalSegments;
+    
+    if (segmentHeight >= 36) {
+        // Plenty of height: show two lines
+        const styleAttr = textColorStyle ? ` style="${textColorStyle}"` : '';
+        return `
+            <span class="segment-date"${styleAttr}>${dateStr}</span>
+            <span class="segment-hours"${styleAttr}>${hourStr}</span>
+        `;
+    } else {
+        // Less height or thin segment (e.g. "Jun 12 • 3 hrs" or "Mon, Jun 15 • 6 hrs")
+        const compactText = `${dateStr} • ${hourStr}`;
+        const fontSize = segmentHeight < 20 ? 'font-size: 0.5625rem;' : 'font-size: 0.625rem;';
+        const finalStyle = textColorStyle ? `style="${textColorStyle} ${fontSize}"` : `style="${fontSize}"`;
+        return `
+            <span class="segment-label" ${finalStyle}>${compactText}</span>
+        `;
+    }
+}
+
 // ==========================================================================
 // DOM RENDERING ENGINE
 // ==========================================================================
@@ -853,9 +924,6 @@ function renderRecentActivity() {
                 <div class="activity-dot ${colorClass}">
                     ${initials}
                 </div>
-                <div class="activity-type-badge ${badgeClass}">
-                    ${badgeIcon}
-                </div>
             </div>
             <div class="activity-body">
                 <span class="activity-text">${text}</span>
@@ -934,9 +1002,10 @@ function renderSummaryBar() {
     const totalRemainingSub = document.getElementById('total-remaining-sub');
     if (totalRemainingSub) {
         if (stats.planned > 0) {
-            totalRemainingSub.innerHTML = `<span style="color: #6366f1; font-weight: 600;">${formatDisplayHours(stats.planned)} planned</span> &middot; ${formatDisplayHours(stats.unplanned)} unplanned`;
+            totalRemainingSub.style.display = 'block';
+            totalRemainingSub.innerHTML = `${formatDisplayHours(stats.planned)} planned &middot; ${formatDisplayHours(stats.unplanned)} unplanned`;
         } else {
-            totalRemainingSub.textContent = '';
+            totalRemainingSub.style.display = 'none';
         }
     }
 
@@ -964,84 +1033,57 @@ function renderSummaryBar() {
                 trendAssigned.innerHTML = `<i class="fa-solid fa-arrow-down" style="font-size: 0.6rem;"></i> -${formatDisplayHours(Math.abs(assignedDiff))}`;
             } else {
                 trendAssigned.className = 'trend-badge neutral';
-                trendAssigned.innerHTML = `<i class="fa-solid fa-minus" style="font-size: 0.6rem;"></i> 0`;
+                trendAssigned.innerHTML = `0`;
             }
         }
 
         // 2. Used Hours Trend (Percentage of Assigned)
         if (trendUsed) {
             const usedPct = stats.assigned > 0 ? Math.round((stats.used / stats.assigned) * 100) : 0;
-            trendUsed.className = usedPct >= 75 ? 'trend-badge up' : (usedPct >= 40 ? 'trend-badge info' : 'trend-badge neutral');
+            trendUsed.className = 'trend-badge up';
             trendUsed.innerHTML = `<i class="fa-solid fa-chart-line" style="font-size: 0.6rem;"></i> ${usedPct}%`;
         }
 
         // 3. Remaining Hours Trend (Percentage of Assigned)
         if (trendRemaining) {
             const remainingPct = stats.assigned > 0 ? Math.round((stats.remaining / stats.assigned) * 100) : 0;
-            trendRemaining.className = remainingPct > 25 ? 'trend-badge info' : (remainingPct > 0 ? 'trend-badge down' : 'trend-badge neutral');
+            trendRemaining.className = 'trend-badge pink';
             trendRemaining.innerHTML = `<i class="fa-solid fa-hourglass" style="font-size: 0.6rem;"></i> ${remainingPct}%`;
         }
 
         // 4. Kms Trend
         if (trendKms) {
             const kmsDiff = stats.kms - prevStats.kms;
+            let labelText = '0%';
             if (prevStats.kms > 0) {
                 const kmsPct = Math.round((kmsDiff / prevStats.kms) * 100);
-                if (kmsPct > 0) {
-                    trendKms.className = 'trend-badge up';
-                    trendKms.innerHTML = `<i class="fa-solid fa-arrow-up" style="font-size: 0.6rem;"></i> +${kmsPct}%`;
-                } else if (kmsPct < 0) {
-                    trendKms.className = 'trend-badge down';
-                    trendKms.innerHTML = `<i class="fa-solid fa-arrow-down" style="font-size: 0.6rem;"></i> ${kmsPct}%`;
-                } else {
-                    trendKms.className = 'trend-badge neutral';
-                    trendKms.innerHTML = `<i class="fa-solid fa-minus" style="font-size: 0.6rem;"></i> 0%`;
-                }
-            } else {
-                trendKms.className = 'trend-badge info';
-                trendKms.innerHTML = `<i class="fa-solid fa-circle-info" style="font-size: 0.6rem;"></i> new`;
+                labelText = kmsPct > 0 ? `+${kmsPct}%` : `${kmsPct}%`;
             }
+            trendKms.className = 'trend-badge purple';
+            trendKms.innerHTML = `<i class="fa-solid fa-car" style="font-size: 0.6rem;"></i> ${labelText}`;
         }
     } else {
         // Fallbacks when no previous period exists
         if (trendAssigned) {
             trendAssigned.className = 'trend-badge info';
-            trendAssigned.innerHTML = `<i class="fa-solid fa-star" style="font-size: 0.6rem;"></i> active`;
+            trendAssigned.innerHTML = `<i class="fa-solid fa-bullseye" style="font-size: 0.6rem;"></i> target`;
         }
         if (trendUsed) {
             const usedPct = stats.assigned > 0 ? Math.round((stats.used / stats.assigned) * 100) : 0;
-            trendUsed.className = 'trend-badge info';
+            trendUsed.className = 'trend-badge up';
             trendUsed.innerHTML = `<i class="fa-solid fa-chart-line" style="font-size: 0.6rem;"></i> ${usedPct}%`;
         }
         if (trendRemaining) {
             const remainingPct = stats.assigned > 0 ? Math.round((stats.remaining / stats.assigned) * 100) : 0;
-            trendRemaining.className = 'trend-badge info';
+            trendRemaining.className = 'trend-badge pink';
             trendRemaining.innerHTML = `<i class="fa-solid fa-hourglass" style="font-size: 0.6rem;"></i> ${remainingPct}%`;
         }
         if (trendKms) {
-            trendKms.className = 'trend-badge info';
+            trendKms.className = 'trend-badge purple';
             trendKms.innerHTML = `<i class="fa-solid fa-car" style="font-size: 0.6rem;"></i> start`;
         }
     }
 
-    // Dynamic sub-label inside Remaining card to display Planned Hours
-    const labelGroup = document.querySelector('.summary-card.left .summary-label-group') || document.querySelector('.summary-card.left');
-    if (labelGroup) {
-        let plannedLabel = document.getElementById('planned-sub-label');
-        if (!plannedLabel) {
-            plannedLabel = document.createElement('span');
-            plannedLabel.id = 'planned-sub-label';
-            plannedLabel.style.fontSize = '0.65rem';
-            plannedLabel.style.fontWeight = '600';
-            plannedLabel.style.color = '#6366f1';
-            plannedLabel.style.marginTop = '2px';
-            plannedLabel.style.textTransform = 'uppercase';
-            plannedLabel.style.letterSpacing = '0.03em';
-            labelGroup.appendChild(plannedLabel);
-        }
-        plannedLabel.textContent = `${formatDisplayHours(stats.planned)} Planned`;
-        plannedLabel.style.display = stats.planned > 0 ? 'inline-block' : 'none';
-    }
 }
 
 function animateNumberUpdate(elementId, targetValue, isDecimal = false) {
@@ -1143,23 +1185,23 @@ function renderClientsGrid() {
         const totalRemaining = Math.max(0, client.hours - stats.used);
         const unplanned = Math.max(0, totalRemaining - stats.planned);
         
-        let subText = `<span style="white-space: nowrap;">${formatDisplayHours(stats.used)} used</span>`;
+        const colors = getClientColorValues(client.name);
+        const plannedColor = colors.plannedText || colors.filled;
+        let subText = `<span>${formatDisplayHours(stats.used)} used</span>`;
         if (stats.planned > 0) {
-            subText += ` &middot; <span style="color: #6366f1; font-weight: 600; white-space: nowrap;">${formatDisplayHours(stats.planned)} planned</span> &middot; <span style="color: var(--text-muted); font-weight: 500; white-space: nowrap;">${formatDisplayHours(unplanned)} unplanned</span>`;
+            subText += ` &middot; <span style="color: ${plannedColor}; font-weight: 700;">${formatDisplayHours(stats.planned)} planned</span> &middot; <span>${formatDisplayHours(unplanned)} unplanned</span>`;
         }
         
         hoursSummary.innerHTML = `
-            <div class="hours-summary-left">
-                <span class="hours-top">${formatDisplayHours(totalRemaining)} left</span>
-                <span class="hours-sub">${subText}</span>
-            </div>
-            <div class="hours-adjuster-quick">
-                <button class="btn-quick-adjust btn-quick-minus" title="Remove 1 hour (Used/Planned)">
-                    &minus;
-                </button>
-                <button class="btn-quick-adjust btn-quick-plus" title="Add used/planned hours for this client">
-                    +
-                </button>
+            <div class="hours-summary-left" style="width: 100%;">
+                <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+                    <span class="hours-top" style="font-size: 1.1rem; font-weight: 700;">${formatDisplayHours(totalRemaining)} left</span>
+                    <div class="hours-adjuster-quick" style="display: flex; gap: 4px;">
+                        <button class="btn-quick-adjust btn-quick-minus" title="Remove 1 hour (Used/Planned)" style="width: 22px; height: 22px; border-radius: 50%; border: 1px solid var(--border-color); background: var(--bg-hover); color: var(--fg-color); display: flex; align-items: center; justify-content: center; cursor: pointer; padding: 0;">&minus;</button>
+                        <button class="btn-quick-adjust btn-quick-plus" title="Add used/planned hours for this client" style="width: 22px; height: 22px; border-radius: 50%; border: 1px solid var(--border-color); background: var(--bg-hover); color: var(--fg-color); display: flex; align-items: center; justify-content: center; cursor: pointer; padding: 0;">+</button>
+                    </div>
+                </div>
+                <span class="hours-sub" style="font-size: 0.65rem; color: var(--text-muted); display: block; margin-top: 2px; white-space: nowrap;">${subText}</span>
             </div>
         `;
         
@@ -1193,7 +1235,7 @@ function renderClientsGrid() {
                 // Pre-fill date picker to the current day in sandbox context
                 const dateInput = document.getElementById('entry-date');
                 if (dateInput) {
-                    dateInput.focus();
+                    setTimeout(() => dateInput.focus(), 160);
                 }
             }
         });
@@ -1203,12 +1245,22 @@ function renderClientsGrid() {
         // Vertical Battery Container
         const battery = document.createElement('div');
         battery.className = 'battery-container';
-        battery.style.maxHeight = '320px';
+        const containerMaxHeight = client.hours > 16 ? 360 : 300;
+        battery.style.maxHeight = `${containerMaxHeight}px`;
 
         // Build array of segments
         // We need total of client.hours segment blocks
         const totalSegments = client.hours;
         const segmentElements = [];
+
+        // Determine proportional position for kilometer indicators based on segment cell height
+        const segmentHeight = containerMaxHeight / totalSegments;
+        let dotTop = '4px';
+        if (segmentHeight < 18) {
+            dotTop = '2px';
+        } else if (segmentHeight > 40) {
+            dotTop = '8px';
+        }
 
         // Distribute actual used hours into segments bottom-up
         let totalUsedSegmentsCount = 0;
@@ -1224,12 +1276,11 @@ function renderClientsGrid() {
                 segment.setAttribute('title', 'Click to edit time entry');
                 
                 if (isLabelSegment) {
-                    const kmsDotHtml = entry.kms ? `<span class="kms-dot" title="${entry.kms} Kms traveled"></span>` : '';
-                    segment.innerHTML = `
-                        <span class="segment-date">${formatShortDate(entry.date)}</span>
-                        <span class="segment-hours">${formatEntryHours(entryHours)}</span>
-                        ${kmsDotHtml}
-                    `;
+                    const kmsDotHtml = entry.kms ? `<span class="kms-dot" style="top: ${dotTop}; background-color: white;" title="${entry.kms} Kms traveled"></span>` : '';
+                    const isYellow = client.name.toLowerCase().includes('adrian') || clientColorClass.includes('color-3');
+                    const baseColor = isYellow ? '#713f12' : '#ffffff';
+                    const textColorStyle = `color: ${baseColor}; font-weight: 600;`;
+                    segment.innerHTML = getSegmentHTML(totalSegments, entry, entryHours, textColorStyle, containerMaxHeight) + kmsDotHtml;
                 }
 
                 const rangeText = formatTimeRange(entry.timeFrom, entry.timeTo) || (entry.time ? formatTime12h(entry.time) : '');
@@ -1286,18 +1337,19 @@ function renderClientsGrid() {
                     segment.className = `battery-segment filled ${clientColorClass}`;
                 } else {
                     segment.className = `battery-segment planned ${clientColorClass}`;
+                    // Let CSS handle the background and border. Clear inline overrides to avoid washing out text labels.
+                    segment.style.backgroundColor = '';
+                    segment.style.opacity = '';
                 }
                 
                 segment.setAttribute('title', isInProgress ? 'In Progress: Click to edit Plan' : 'Future Plan: Click to edit');
                 
                 if (isLabelSegment) {
-                    const kmsDotHtml = entry.kms ? `<span class="kms-dot" title="${entry.kms} Kms traveled"></span>` : '';
-                    const textColorStyle = isInProgress ? 'color: #312e81; font-weight: 600;' : 'color: #312e81;';
-                    segment.innerHTML = `
-                        <span class="segment-date" style="${textColorStyle}">${formatShortDate(entry.date)}</span>
-                        <span class="segment-hours" style="${textColorStyle}">${formatEntryHours(entryHours)}</span>
-                        ${kmsDotHtml}
-                    `;
+                    const kmsDotHtml = entry.kms ? `<span class="kms-dot" style="top: ${dotTop}; background-color: white;" title="${entry.kms} Kms traveled"></span>` : '';
+                    const colors = getClientColorValues(client.name);
+                    const baseColor = colors.plannedText || colors.filled;
+                    const textColorStyle = isInProgress ? `color: ${baseColor}; font-weight: 800;` : `color: ${baseColor};`;
+                    segment.innerHTML = getSegmentHTML(totalSegments, entry, entryHours, textColorStyle, containerMaxHeight) + kmsDotHtml;
                 }
 
                 const rangeText = formatTimeRange(entry.timeFrom, entry.timeTo) || (entry.time ? formatTime12h(entry.time) : '');
@@ -1359,11 +1411,12 @@ function renderClientsGrid() {
         stats.entries.forEach(entry => {
             clientKms += (entry.kms || 0);
         });
-        const kmsDisplay = clientKms > 0 ? `<div style="font-size: 0.75rem; font-weight: 600; color: #0891b2; margin-top: 4px; display: inline-flex; align-items: center; gap: 4px;"><i class="fa-solid fa-car" style="font-size: 0.6875rem;"></i> ${clientKms.toFixed(1)} Kms</div>` : '';
+        const clientColors = getClientColorValues(client.name);
+        const kmsDisplay = clientKms > 0 ? `<div style="font-size: 0.7rem; font-weight: 600; color: ${clientColors.filled}; margin-top: 4px; display: inline-flex; align-items: center; gap: 4px;"><i class="fa-solid fa-car-side" style="font-size: 0.6875rem;"></i> ${clientKms.toFixed(1)} Kms</div>` : '';
 
         cardDetails.innerHTML = `
-            <span class="client-name-title">${client.name}</span>
-            <span class="client-total-assigned">
+            <span class="client-name-title" style="font-size: 0.85rem; line-height: 1.1;">${client.name}</span>
+            <span class="client-total-assigned" style="font-size: 0.7rem;">
                 ${client.hours} Hrs Assigned <i class="fa-solid fa-sliders details-cog"></i>
             </span>
             ${kmsDisplay}
@@ -1386,6 +1439,9 @@ function renderCalendar() {
     const gridContainer = document.getElementById('calendar-days-grid');
     const monthYearLabel = document.getElementById('calendar-month-year-label');
     if (!gridContainer) return;
+
+    // Clear previous transition classes
+    gridContainer.classList.remove('calendar-slide-next', 'calendar-slide-prev');
 
     const activePeriod = getActivePeriod();
     if (!activePeriod) return;
@@ -1559,7 +1615,7 @@ function renderCalendar() {
                 dateInput.dispatchEvent(new Event('change'));
                 modalAddEntry.classList.add('active');
                 if (clientDropdown) {
-                    clientDropdown.focus();
+                    setTimeout(() => clientDropdown.focus(), 160);
                 }
             }
         });
@@ -1569,6 +1625,13 @@ function renderCalendar() {
 
         // Advance to next day
         current.setDate(current.getDate() + 1);
+    }
+
+    // Trigger slide transition
+    if (calendarTransitionDirection) {
+        void gridContainer.offsetWidth; // Force layout reflow
+        gridContainer.classList.add(`calendar-slide-${calendarTransitionDirection}`);
+        calendarTransitionDirection = null; // Reset
     }
 }
 
@@ -1755,8 +1818,11 @@ function deleteEntry(entryId, client) {
     saveState();
     render();
     
-    // Refresh modal
-    openClientDetailsModal(client.id);
+    // Refresh legacy details modal if active
+    const modalDetails = document.getElementById('modal-client-details');
+    if (modalDetails && modalDetails.classList.contains('active')) {
+        legacyOpenClientDetailsModal(client.id);
+    }
 
     showToastNotification(`Deleted entry of ${entry.hours} hrs for client "${client.name}".`, 'success');
 }
@@ -1898,7 +1964,10 @@ function quickAddHour(clientId) {
     
     // If details modal is active for this client, refresh it
     if (activeDetailsClientId === client.id) {
-        openClientDetailsModal(client.id);
+        const modalDetails = document.getElementById('modal-client-details');
+        if (modalDetails && modalDetails.classList.contains('active')) {
+            legacyOpenClientDetailsModal(client.id);
+        }
     }
 
     showToastNotification(`Logged 1 hour to client "${client.name}"!`, 'success');
@@ -1925,12 +1994,19 @@ function quickRemoveHour(clientId) {
     if (recentEntry) {
         const entryInState = activePeriod.entries.find(e => e.id === recentEntry.id);
         if (entryInState) {
+            const isPlanned = entryInState.type === 'planned';
+            const labelText = isPlanned ? 'future plan' : 'logged hours';
+            const msg = entryInState.hours <= 1 
+                ? `This will completely delete the most recent ${labelText} (${formatEntryHours(entryInState.hours)}) for client "${client.name}". Are you sure you want to delete it?`
+                : `Are you sure you want to subtract 1 hour from the most recent ${labelText} for client "${client.name}"?`;
+            
+            if (!confirm(msg)) {
+                return;
+            }
+
             entryInState.hours -= 1;
             
             // If hours reach 0, remove the entry completely
-            const isPlanned = entryInState.type === 'planned';
-            const labelText = isPlanned ? 'future plan' : 'used hour';
-            
             if (entryInState.hours <= 0) {
                 activePeriod.entries = activePeriod.entries.filter(e => e.id !== recentEntry.id);
                 showToastNotification(`Removed ${labelText} for "${client.name}" as hours reached 0.`, 'success');
@@ -1943,7 +2019,10 @@ function quickRemoveHour(clientId) {
             
             // If details modal is active for this client, refresh it
             if (activeDetailsClientId === client.id) {
-                openClientDetailsModal(client.id);
+                const modalDetails = document.getElementById('modal-client-details');
+                if (modalDetails && modalDetails.classList.contains('active')) {
+                    legacyOpenClientDetailsModal(client.id);
+                }
             }
         }
     }
@@ -2350,6 +2429,7 @@ function setupEventListeners() {
             if (!calendarViewDate) {
                 calendarViewDate = new Date(activePeriod.start + 'T00:00:00');
             }
+            calendarTransitionDirection = 'prev';
             calendarViewDate.setMonth(calendarViewDate.getMonth() - 1);
             renderCalendar();
         });
@@ -2361,6 +2441,7 @@ function setupEventListeners() {
             if (!calendarViewDate) {
                 calendarViewDate = new Date(activePeriod.start + 'T00:00:00');
             }
+            calendarTransitionDirection = 'next';
             calendarViewDate.setMonth(calendarViewDate.getMonth() + 1);
             renderCalendar();
         });
@@ -2618,7 +2699,7 @@ function setupEventListeners() {
             render();
             
             // Refresh modal
-            openClientDetailsModal(client.id);
+            legacyOpenClientDetailsModal(client.id);
             showToastNotification(`Increased "${client.name}" assigned hours limit to ${client.hours} Hrs!`, 'success');
         });
     }
@@ -2649,7 +2730,7 @@ function setupEventListeners() {
             render();
 
             // Refresh modal
-            openClientDetailsModal(client.id);
+            legacyOpenClientDetailsModal(client.id);
             showToastNotification(`Decreased "${client.name}" assigned hours limit to ${client.hours} Hrs.`, 'success');
         });
     }
@@ -2743,7 +2824,8 @@ function setupEventListeners() {
             const newClient = {
                 id: 'c_' + Date.now(),
                 name,
-                hours
+                hours,
+                startDate: new Date().toISOString().split('T')[0]
             };
 
             activePeriod.clients.push(newClient);
@@ -3041,7 +3123,10 @@ function setupEventListeners() {
 
             // Refresh Details modal if active for this client
             if (activeDetailsClientId === client.id) {
-                openClientDetailsModal(client.id);
+                const modalDetails = document.getElementById('modal-client-details');
+                if (modalDetails && modalDetails.classList.contains('active')) {
+                    legacyOpenClientDetailsModal(client.id);
+                }
             }
 
             showToastNotification(`Successfully updated entry for client "${client.name}"!`, 'success');
@@ -3355,7 +3440,7 @@ function showToastNotification(message, type = 'success') {
 }
 
 // Self-healing service worker cache clearing
-const CURRENT_VERSION = 'v44';
+const CURRENT_VERSION = 'v73';
 if (localStorage.getItem('cache_cleared_version') !== CURRENT_VERSION) {
     if (window.caches) {
         caches.keys().then(names => {
@@ -3417,6 +3502,7 @@ function handleTabSwitch(tabName) {
     navItems.forEach(btn => btn.classList.remove('active'));
 
     if (tabName === 'dashboard') {
+        activeDetailsClientId = null;
         if (viewDashboard) viewDashboard.classList.remove('hidden');
         if (viewProgress) viewProgress.classList.add('hidden');
         if (viewProfile) viewProfile.classList.add('hidden');
@@ -3424,6 +3510,7 @@ function handleTabSwitch(tabName) {
         if (dashBtn) dashBtn.classList.add('active');
         render(); // render dashboard views
     } else if (tabName === 'progress') {
+        activeDetailsClientId = null;
         if (viewDashboard) viewDashboard.classList.add('hidden');
         if (viewProgress) viewProgress.classList.remove('hidden');
         if (viewProfile) viewProfile.classList.add('hidden');
@@ -3431,6 +3518,7 @@ function handleTabSwitch(tabName) {
         if (progBtn) progBtn.classList.add('active');
         renderProgressPage();
     } else if (tabName === 'profile') {
+        activeDetailsClientId = state.activeProfileClientId;
         if (viewDashboard) viewDashboard.classList.add('hidden');
         if (viewProgress) viewProgress.classList.add('hidden');
         if (viewProfile) viewProfile.classList.remove('hidden');
@@ -3876,7 +3964,7 @@ function migrateClientProfileState(client) {
     if (client.emergencyContactRelation === 'Spouse' || client.emergencyContactRelation === undefined) client.emergencyContactRelation = '';
     if (client.emergencyContactPhone === '(555) 987-6543' || client.emergencyContactPhone === undefined) client.emergencyContactPhone = '';
     if (client.supportType === 'Daily Living Support' || client.supportType === undefined) client.supportType = '';
-    if (client.startDate === '2024-03-15' || client.startDate === undefined) client.startDate = '';
+    if (client.startDate === undefined || client.startDate === '') client.startDate = '2024-03-15';
     if (!client.status) client.status = 'Active';
     
     if (!client.goals || (Array.isArray(client.goals) && client.goals.some(g => g.id === 'g1' || g.id === 'g2' || g.id === 'g3'))) {
