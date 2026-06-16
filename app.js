@@ -1201,7 +1201,7 @@ function renderClientsGrid() {
                         <button class="btn-quick-adjust btn-quick-plus" title="Add used/planned hours for this client" style="width: 22px; height: 22px; border-radius: 50%; border: 1px solid var(--border-color); background: var(--bg-hover); color: var(--fg-color); display: flex; align-items: center; justify-content: center; cursor: pointer; padding: 0;">+</button>
                     </div>
                 </div>
-                <span class="hours-sub" style="font-size: 0.65rem; color: var(--text-muted); display: block; margin-top: 2px; white-space: nowrap;">${subText}</span>
+                <span class="hours-sub" style="font-size: 0.65rem; color: var(--text-muted); display: block; margin-top: 2px; line-height: 1.35; word-break: break-word;">${subText}</span>
             </div>
         `;
         
